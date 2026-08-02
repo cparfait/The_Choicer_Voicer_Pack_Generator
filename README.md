@@ -164,10 +164,17 @@ Tout est couvert, pas seulement les voix.
 | 💬 **Chatter** | les sons declenches par les mots-cles du chat Twitch |
 
 > **Les personnages posent sur le sol du plateau.** Le jeu ne redimensionne ni
-> les juges ni le candidat : une image trop courte a la tete sous le pupitre,
-> donc invisible. L'outil ramene ces images a **1000 px de haut**, ratio
-> conserve, au moment de la generation — et te previent quand l'agrandissement
-> risque d'etre visible.
+> les juges ni le candidat, et pose le bas de l'image sur le sol. Deux pieges,
+> que l'outil corrige a la generation :
+>
+> - **image trop courte** — la tete passe sous le pupitre. Elle est ramenee a
+>   **1000 px de haut**, ratio conserve ;
+> - **marge transparente sous les pieds** — le personnage flotte, ou disparait.
+>   Les marges vides sont rognees avant la mise a l'echelle.
+>
+> Reste une chose que personne ne peut faire a ta place : **detourer**. Une
+> photo rectangulaire s'affiche en entier, fond compris. Le bouton *Verifier*
+> te le signale.
 
 Le pack **animateur** part d'un modele francais complet : les repliques du
 `config_host.json` d'origine sont traduites, avec plusieurs variantes possibles

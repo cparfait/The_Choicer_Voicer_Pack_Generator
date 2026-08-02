@@ -269,12 +269,58 @@ def convert_image(src: Path, dst: Path, max_size: int | None = None) -> None:
         raise MediaError(proc.stderr.decode("utf-8", "replace")[-800:])
 
 
-def scale_to_height(src: Path, dst: Path, height: int) -> None:
-    """Met une image a la hauteur voulue, ratio et transparence conserves."""
+def alpha_info(src: Path) -> dict:
+    """Ce que la couche alpha d'une image raconte.
+
+    Retourne {"bounds", "transparent", "height"} : le rectangle reellement
+    dessine (None s'il occupe tout le cadre), la part de pixels vides, et la
+    hauteur de ce rectangle. Sert a poser un personnage sur le sol du plateau.
+    """
+    info = probe(src)
+    width, height = info["width"], info["height"]
+    empty = {"bounds": None, "transparent": 0.0, "height": height}
+    if not width or not height:
+        return empty
+    proc = _run([
+        settings.binary("ffmpeg"), "-v", "error", "-i", str(src),
+        "-vf", "alphaextract,format=gray", "-f", "rawvideo", "-",
+    ])
+    raw = proc.stdout
+    if proc.returncode != 0 or len(raw) < width * height:
+        return empty
+
+    opaque = 8  # en dessous, le pixel est considere comme vide
+    rows = [y for y in range(height) if max(raw[y * width:(y + 1) * width]) > opaque]
+    if not rows:
+        return empty
+    columns = [x for x in range(width) if max(raw[x::width]) > opaque]
+    left, right, top, bottom = columns[0], columns[-1], rows[0], rows[-1]
+    transparent = sum(1 for value in raw[:width * height] if value <= opaque)
+    full_frame = (left, top, right, bottom) == (0, 0, width - 1, height - 1)
+    return {
+        "bounds": None if full_frame else (left, top, right - left + 1, bottom - top + 1),
+        "transparent": transparent / (width * height),
+        "height": bottom - top + 1,
+    }
+
+
+def fit_stage_image(src: Path, dst: Path, height: int,
+                    bounds: tuple[int, int, int, int] | None = None) -> None:
+    """Rogne les marges transparentes, puis met a la hauteur voulue.
+
+    Le jeu pose le bas de l'image sur le sol du plateau : une marge
+    transparente sous les pieds ferait flotter le personnage, et une image
+    trop courte le laisserait derriere le pupitre.
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
+    filters = []
+    if bounds:
+        x, y, w, h = bounds
+        filters.append(f"crop={w}:{h}:{x}:{y}")
+    filters.append(f"scale=-1:{height}:flags=lanczos")
     proc = _run([
         settings.binary("ffmpeg"), "-y", "-i", str(src),
-        "-vf", f"scale=-1:{height}:flags=lanczos", "-frames:v", "1", str(dst),
+        "-vf", ",".join(filters), "-frames:v", "1", str(dst),
     ])
     if proc.returncode != 0:
         raise MediaError(proc.stderr.decode("utf-8", "replace")[-800:])

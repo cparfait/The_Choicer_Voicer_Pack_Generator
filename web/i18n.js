@@ -491,6 +491,20 @@ const DICT = {
   'Piste d\'ambiance': ['Backing track', 'Pista de ambiente'],
   'Transcription %s/%s': ['Transcription %s/%s', 'Transcripcion %s/%s'],
 
+  /* -- personnages sur le plateau (serveur) ------------------------------------------ */
+  'image non detouree. Le jeu affichera le rectangle entier, fond compris — decoupe le personnage sur fond transparent (PNG) pour qu\'il se detache du plateau.':
+    ['not cut out. The game will show the whole rectangle, background included — cut the character out on a transparent background (PNG) so it stands apart from the set.',
+      'imagen sin recortar. El juego mostrara el rectangulo entero, fondo incluido: recorta el personaje sobre fondo transparente (PNG) para que destaque en el plato.'],
+  'marges transparentes rognees a la generation, pour que le personnage touche le sol.':
+    ['transparent margins trimmed at build time, so the character touches the floor.',
+      'margenes transparentes recortados al generar, para que el personaje toque el suelo.'],
+  'personnage de %s px de haut, agrandi a %s px a la generation.':
+    ['character %s px tall, scaled up to %s px at build time.',
+      'personaje de %s px de alto, ampliado a %s px al generar.'],
+  'personnage de %s px de haut agrandi a %s px — sans quoi il reste derriere le pupitre. Une image plus haute donnerait un rendu plus net.':
+    ['character %s px tall scaled up to %s px — otherwise it stays behind the desk. A taller image would look sharper.',
+      'personaje de %s px de alto ampliado a %s px: de lo contrario se queda detras del atril. Una imagen mas alta se veria mas nitida.'],
+
   /* -- erreurs (serveur) ----------------------------------------------------------- */
   'Projet introuvable': ['Project not found', 'Proyecto no encontrado'],
   'Fichier introuvable': ['File not found', 'Archivo no encontrado'],
@@ -756,11 +770,15 @@ export function setLang(code) {
 const NUMBER = /\d+(?:[.,:]\d+)*/g;
 
 /** Traduction d'une phrase entiere, ou null si elle n'est pas au dictionnaire. */
-function lookup(text) {
+function lookup(text, allowPair = true) {
   if (current === 'fr' || !text) return null;
   const column = COLUMN[current];
   const direct = DICT[text];
   if (direct) return direct[column] || null;
+  if (allowPair) {
+    const pair = lookupPair(text);
+    if (pair) return pair;
+  }
   // « Clip 3/12 » -> cle « Clip %s/%s », puis les nombres reviennent en place.
   const numbers = text.match(NUMBER);
   if (!numbers) return null;
@@ -768,6 +786,17 @@ function lookup(text) {
   if (!pattern || !pattern[column]) return null;
   let index = 0;
   return pattern[column].replace(/%s/g, () => numbers[index++] ?? '');
+}
+
+/* Les avertissements du serveur ont souvent la forme « Emplacement : phrase ».
+ * Les deux morceaux sont au dictionnaire separement — mais on ne recolle que
+ * si les deux se traduisent, pour ne pas afficher une moitie de phrase. */
+function lookupPair(text) {
+  const cut = text.indexOf(' : ');
+  if (cut < 0) return null;
+  const head = lookup(text.slice(0, cut), false);
+  const tail = lookup(text.slice(cut + 3), false);
+  return head && tail ? `${head}: ${tail}` : null;
 }
 
 /**

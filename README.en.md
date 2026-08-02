@@ -163,9 +163,16 @@ Everything is covered, not just voices.
 | 💬 **Chatter** | sounds triggered by Twitch chat keywords |
 
 > **Characters stand on the studio floor.** The game resizes neither the judges
-> nor the contestant: an image that is too short has its head below the desk,
-> and stays invisible. The tool brings those images to **1000 px tall**, ratio
-> kept, at build time — and warns you when the upscaling is likely to show.
+> nor the contestant, and puts the bottom of the image on the floor. Two traps,
+> both fixed at build time:
+>
+> - **an image that is too short** — the head sits below the desk. It is brought
+>   to **1000 px tall**, ratio kept;
+> - **a transparent margin under the feet** — the character floats, or vanishes.
+>   Empty margins are trimmed before scaling.
+>
+> One thing nobody can do for you: **cutting out**. A rectangular photo is drawn
+> in full, background included. The *Check* button tells you so.
 
 The **host** pack starts from a complete French template: the lines of the
 original `config_host.json` are translated, with several possible variants per

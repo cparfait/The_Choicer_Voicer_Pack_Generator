@@ -346,26 +346,35 @@ def stage_height_of(path: Path) -> int:
 
 def _copy_stage_image(source: Path, destination: Path, slot: dict,
                       warnings: list[str]) -> None:
-    """Copie un personnage en le ramenant a la hauteur du plateau.
+    """Copie un personnage en le posant correctement sur le sol du plateau.
 
-    Le jeu pose l'image sur le sol sans la redimensionner : trop courte, elle
-    finit cachee derriere le pupitre. On la met donc a l'echelle ici.
+    Le jeu ne redimensionne pas ces images et pose leur bas sur le sol. Deux
+    choses les rendent invisibles : une marge transparente sous les pieds, et
+    une image trop courte pour depasser du pupitre. On corrige les deux.
     """
-    height = stage_height_of(source)
-    if not height or abs(height - STAGE_HEIGHT) <= STAGE_TOLERANCE:
+    try:
+        alpha = media.alpha_info(source)
+    except media.MediaError:
+        alpha = {"bounds": None, "height": stage_height_of(source)}
+    bounds, height = alpha["bounds"], alpha["height"]
+    if not height:
         media.copy_media(source, destination)
         return
+    if not bounds and abs(height - STAGE_HEIGHT) <= STAGE_TOLERANCE:
+        media.copy_media(source, destination)
+        return
+
     try:
-        media.scale_to_height(source, destination, STAGE_HEIGHT)
+        media.fit_stage_image(source, destination, STAGE_HEIGHT, bounds)
     except media.MediaError as exc:
         warnings.append(f"{slot['label']} : mise a l'echelle impossible ({exc})")
         media.copy_media(source, destination)
         return
     if height < STAGE_HEIGHT - STAGE_TOLERANCE:
         warnings.append(
-            f"{slot['label']} : image de {height} px de haut agrandie a "
-            f"{STAGE_HEIGHT} px — sans quoi le personnage reste derriere le "
-            f"pupitre. Une image plus haute donnerait un rendu plus net."
+            f"{slot['label']} : personnage de {height} px de haut agrandi a "
+            f"{STAGE_HEIGHT} px — sans quoi il reste derriere le pupitre. "
+            f"Une image plus haute donnerait un rendu plus net."
         )
 
 
@@ -545,10 +554,22 @@ def validate(project: Project) -> list[dict]:
             if not slot.get("stage"):
                 continue
             asset = project.asset(slot["name"])
-            height = stage_height_of(asset) if asset else 0
-            if height and abs(height - STAGE_HEIGHT) > STAGE_TOLERANCE:
-                add("info", f"{slot['label']} : {height} px de haut, mise a l'echelle a "
-                            f"{STAGE_HEIGHT} px a la generation.")
+            if not asset:
+                continue
+            try:
+                alpha = media.alpha_info(asset)
+            except media.MediaError:
+                continue
+            if alpha["transparent"] < 0.02:
+                add("warning", f"{slot['label']} : image non detouree. Le jeu affichera le "
+                               f"rectangle entier, fond compris — decoupe le personnage sur "
+                               f"fond transparent (PNG) pour qu'il se detache du plateau.")
+            if alpha["bounds"]:
+                add("info", f"{slot['label']} : marges transparentes rognees a la generation, "
+                            f"pour que le personnage touche le sol.")
+            if alpha["height"] and alpha["height"] < STAGE_HEIGHT - STAGE_TOLERANCE:
+                add("info", f"{slot['label']} : personnage de {alpha['height']} px de haut, "
+                            f"agrandi a {STAGE_HEIGHT} px a la generation.")
         if project.type == "judges":
             missing = [i for i in range(1, 6) if not project.asset(f"judge{i}")]
             if missing:
