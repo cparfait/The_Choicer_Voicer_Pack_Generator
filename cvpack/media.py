@@ -269,6 +269,17 @@ def convert_image(src: Path, dst: Path, max_size: int | None = None) -> None:
         raise MediaError(proc.stderr.decode("utf-8", "replace")[-800:])
 
 
+def scale_to_height(src: Path, dst: Path, height: int) -> None:
+    """Met une image a la hauteur voulue, ratio et transparence conserves."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    proc = _run([
+        settings.binary("ffmpeg"), "-y", "-i", str(src),
+        "-vf", f"scale=-1:{height}:flags=lanczos", "-frames:v", "1", str(dst),
+    ])
+    if proc.returncode != 0:
+        raise MediaError(proc.stderr.decode("utf-8", "replace")[-800:])
+
+
 def extract_frame(src: Path, time: float, dst: Path, width: int = 640) -> None:
     """Une image fixe prise a `time` secondes."""
     dst.parent.mkdir(parents=True, exist_ok=True)

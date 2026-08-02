@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import inifmt, media, settings
 from .project import Project, safe_name
-from .specs import IMAGE_EXTS, PLAYER_AUDIO_SLOTS, SPECS
+from .specs import IMAGE_EXTS, PLAYER_AUDIO_SLOTS, SPECS, STAGE_HEIGHT
 
 MAX_CLIP_SECONDS = 60.0
 MAX_DUB_CLIP_SECONDS = 6.0
@@ -334,6 +334,41 @@ def _dub_video_source(project: Project) -> Path | None:
     return None
 
 
+STAGE_TOLERANCE = 60  # px : inutile de reencoder pour trois pixels d'ecart
+
+
+def stage_height_of(path: Path) -> int:
+    try:
+        return int(media.probe(path).get("height") or 0)
+    except media.MediaError:
+        return 0
+
+
+def _copy_stage_image(source: Path, destination: Path, slot: dict,
+                      warnings: list[str]) -> None:
+    """Copie un personnage en le ramenant a la hauteur du plateau.
+
+    Le jeu pose l'image sur le sol sans la redimensionner : trop courte, elle
+    finit cachee derriere le pupitre. On la met donc a l'echelle ici.
+    """
+    height = stage_height_of(source)
+    if not height or abs(height - STAGE_HEIGHT) <= STAGE_TOLERANCE:
+        media.copy_media(source, destination)
+        return
+    try:
+        media.scale_to_height(source, destination, STAGE_HEIGHT)
+    except media.MediaError as exc:
+        warnings.append(f"{slot['label']} : mise a l'echelle impossible ({exc})")
+        media.copy_media(source, destination)
+        return
+    if height < STAGE_HEIGHT - STAGE_TOLERANCE:
+        warnings.append(
+            f"{slot['label']} : image de {height} px de haut agrandie a "
+            f"{STAGE_HEIGHT} px — sans quoi le personnage reste derriere le "
+            f"pupitre. Une image plus haute donnerait un rendu plus net."
+        )
+
+
 def _build_simple(project: Project, target: Path, warnings: list[str],
                   written: list[str], progress) -> None:
     spec = SPECS[project.type]
@@ -363,7 +398,10 @@ def _build_simple(project: Project, target: Path, warnings: list[str],
                 warnings.append(f"{slot['label']} : conversion OGV impossible ({exc})")
             continue
         destination = target / f"{name}{extension}"
-        media.copy_media(Path(source), destination)
+        if slot.get("stage"):
+            _copy_stage_image(Path(source), destination, slot, warnings)
+        else:
+            media.copy_media(Path(source), destination)
         written.append(destination.name)
 
     progress(1.0, "Configuration")
@@ -504,6 +542,13 @@ def validate(project: Project) -> list[dict]:
         for slot in SPECS[project.type].get("slots", []):
             if slot.get("required") and not project.asset(slot["name"]):
                 add("error", f"Fichier requis manquant : {slot['label']}.")
+            if not slot.get("stage"):
+                continue
+            asset = project.asset(slot["name"])
+            height = stage_height_of(asset) if asset else 0
+            if height and abs(height - STAGE_HEIGHT) > STAGE_TOLERANCE:
+                add("info", f"{slot['label']} : {height} px de haut, mise a l'echelle a "
+                            f"{STAGE_HEIGHT} px a la generation.")
         if project.type == "judges":
             missing = [i for i in range(1, 6) if not project.asset(f"judge{i}")]
             if missing:

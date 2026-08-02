@@ -16,10 +16,24 @@
  * « Clip %s/%s », puis les nombres sont remis en place.
  */
 
+/* Drapeaux dessines a la main : Windows n'a pas de glyphes pour les emojis
+ * de drapeau, qui s'y afficheraient en deux lettres. */
+const FLAGS = {
+  fr: '<svg viewBox="0 0 60 30" aria-hidden="true"><rect width="20" height="30" fill="#0055A4"/>'
+    + '<rect x="20" width="20" height="30" fill="#fff"/><rect x="40" width="20" height="30" fill="#EF4135"/></svg>',
+  en: '<svg viewBox="0 0 60 30" aria-hidden="true"><rect width="60" height="30" fill="#012169"/>'
+    + '<path d="M0 0 60 30 M60 0 0 30" stroke="#fff" stroke-width="7"/>'
+    + '<path d="M0 0 60 30 M60 0 0 30" stroke="#C8102E" stroke-width="4"/>'
+    + '<path d="M30 0V30 M0 15H60" stroke="#fff" stroke-width="11"/>'
+    + '<path d="M30 0V30 M0 15H60" stroke="#C8102E" stroke-width="6"/></svg>',
+  es: '<svg viewBox="0 0 60 30" aria-hidden="true"><rect width="60" height="30" fill="#AA151B"/>'
+    + '<rect y="7.5" width="60" height="15" fill="#F1BF00"/></svg>',
+};
+
 export const LANGUAGES = [
-  { code: 'fr', label: 'Francais' },
-  { code: 'en', label: 'English' },
-  { code: 'es', label: 'Espanol' },
+  { code: 'fr', label: 'Francais', short: 'FR', flag: FLAGS.fr },
+  { code: 'en', label: 'English', short: 'EN', flag: FLAGS.en },
+  { code: 'es', label: 'Espanol', short: 'ES', flag: FLAGS.es },
 ];
 
 const COLUMN = { en: 0, es: 1 };
@@ -571,12 +585,12 @@ const DICT = {
       'Musica y efectos sin las voces, sonando durante el modo Dub.'],
   'Optionnel.': ['Optional.', 'Opcional.'],
   'Image du candidat': ['Contestant image', 'Imagen del concursante'],
-  '~500x1000 px, non redimensionnee. Le bas touche le sol.':
-    ['~500x1000 px, not resized. The bottom touches the floor.',
-      '~500x1000 px, sin redimensionar. La base toca el suelo.'],
-  '~500x1000 px. Le bas de l\'image touche le sol du studio.':
-    ['~500x1000 px. The bottom of the image touches the studio floor.',
-      '~500x1000 px. La base de la imagen toca el suelo del estudio.'],
+  '~500x1000 px, le bas touche le sol. Une image d\'une autre hauteur est mise a l\'echelle a la generation, sinon le personnage reste derriere le pupitre.':
+    ['~500x1000 px, the bottom touches the floor. An image of another height is scaled at build time, otherwise the character stays behind the desk.',
+      '~500x1000 px, la base toca el suelo. Una imagen de otra altura se escala al generar, si no el personaje se queda detras del atril.'],
+  '~500x1000 px, le bas de l\'image touche le sol du studio. Une image d\'une autre hauteur est mise a l\'echelle a la generation, sinon le personnage reste derriere le pupitre.':
+    ['~500x1000 px, the bottom of the image touches the studio floor. An image of another height is scaled at build time, otherwise the character stays behind the desk.',
+      '~500x1000 px, la base de la imagen toca el suelo del estudio. Una imagen de otra altura se escala al generar, si no el personaje se queda detras del atril.'],
   'Image de l\'animateur': ['Host image', 'Imagen del presentador'],
   'Nom du candidat': ['Contestant name', 'Nombre del concursante'],
   'Nom de l\'animateur': ['Host name', 'Nombre del presentador'],

@@ -19,13 +19,20 @@ SOURCE_VIDEO_EXTS = [".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v", ".ogv", ".
 SOURCE_AUDIO_EXTS = [".wav", ".mp3", ".ogg", ".m4a", ".aac", ".flac", ".opus", ".wma"]
 
 
-def _slot(name, label, kind, required=False, help="", exts=None):
+# Hauteur d'un personnage sur le plateau. Le jeu ne redimensionne pas ces
+# images : plus courte, la tete ne depasse pas du pupitre et le personnage
+# reste invisible. Les packs de la communaute tournent tous autour de 1000 px.
+STAGE_HEIGHT = 1000
+
+
+def _slot(name, label, kind, required=False, help="", exts=None, stage=False):
     return {
         "name": name,
         "label": label,
         "kind": kind,
         "required": required,
         "help": help,
+        "stage": stage,
         "exts": exts or {
             "image": IMAGE_EXTS,
             "audio": AUDIO_EXTS,
@@ -45,7 +52,10 @@ def _field(key, label, type_, default=None, help="", options=None, group=""):
 JUDGE_SLOTS = []
 for i in range(1, 6):
     JUDGE_SLOTS.append(_slot(f"judge{i}", f"Juge {i} — image", "image", required=(i == 1),
-                             help="~500x1000 px. Le bas de l'image touche le sol du studio."))
+                             stage=True,
+                             help="~500x1000 px, le bas de l'image touche le sol du studio. "
+                                  "Une image d'une autre hauteur est mise a l'echelle a la "
+                                  "generation, sinon le personnage reste derriere le pupitre."))
 for i in range(1, 6):
     JUDGE_SLOTS.append(_slot(f"judge{i}_voice", f"Juge {i} — voix", "audio",
                              help="Joue quand ce juge vote pour vous."))
@@ -126,8 +136,10 @@ SPECS: dict[str, dict] = {
         "editor": "simple",
         "description": "Le personnage que vous incarnez sur le plateau.",
         "slots": [
-            _slot("player", "Image du candidat", "image", required=True,
-                  help="~500x1000 px, non redimensionnee. Le bas touche le sol."),
+            _slot("player", "Image du candidat", "image", required=True, stage=True,
+                  help="~500x1000 px, le bas touche le sol. Une image d'une autre hauteur "
+                       "est mise a l'echelle a la generation, sinon le personnage reste "
+                       "derriere le pupitre."),
         ] + [
             _slot(f"audio_{key}", label, "audio", help="Optionnel.")
             for key, label in PLAYER_AUDIO_SLOTS

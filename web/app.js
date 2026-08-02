@@ -215,18 +215,47 @@ function renderView(view) {
 /* ------------------------------------------------------------- traduction */
 
 function wireLanguage() {
-  const select = document.getElementById('lang-select');
-  select.innerHTML = LANGUAGES.map((language) =>
-    `<option value="${language.code}" ${language.code === getLang() ? 'selected' : ''}
-     >${language.label}</option>`).join('');
-  select.onchange = async () => {
-    setLang(select.value);
+  const root = document.getElementById('lang');
+  const button = document.getElementById('lang-button');
+  const menu = document.getElementById('lang-menu');
+
+  const paint = () => {
+    const active = LANGUAGES.find((l) => l.code === getLang()) || LANGUAGES[0];
+    button.innerHTML = `${active.flag}<span>${active.short}</span><i>&#9662;</i>`;
+    button.title = active.label;
+    menu.innerHTML = LANGUAGES.map((language) => `
+      <li role="option" data-lang="${language.code}"
+          aria-selected="${language.code === active.code}"
+          class="${language.code === active.code ? 'on' : ''}"
+        >${language.flag}<span>${language.label}</span></li>`).join('');
+  };
+
+  const close = () => { menu.hidden = true; button.setAttribute('aria-expanded', 'false'); };
+  const open = () => { menu.hidden = false; button.setAttribute('aria-expanded', 'true'); };
+
+  button.onclick = (event) => {
+    event.stopPropagation();
+    if (menu.hidden) open(); else close();
+  };
+  document.addEventListener('click', (event) => {
+    if (!root.contains(event.target)) close();
+  });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') close(); });
+
+  menu.onclick = async (event) => {
+    const item = event.target.closest('[data-lang]');
+    if (!item) return;
+    close();
+    setLang(item.dataset.lang);
+    paint();
     document.title = t('Createur de packs — The Choicer Voicer');
     // La vue courante est reconstruite en francais, puis retraduite d'un bloc :
     // c'est le seul moyen de revenir au francais sans recharger la page.
     await renderView(document.querySelector('.view.active')?.id.replace('view-', ''));
     translateTree(document.body);
   };
+
+  paint();
 }
 
 /* ----------------------------------------------------------- vue accueil */

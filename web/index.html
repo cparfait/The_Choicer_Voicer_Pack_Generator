@@ -15,7 +15,10 @@
       <button data-view="library">Packs installes</button>
       <button data-view="settings">Reglages</button>
       <button data-view="help">Aide</button>
-      <select id="lang-select" class="lang" title="Langue" data-notr></select>
+      <div class="lang" id="lang" data-notr>
+        <button type="button" id="lang-button" aria-haspopup="listbox" aria-expanded="false"></button>
+        <ul id="lang-menu" role="listbox" hidden></ul>
+      </div>
     </nav>
   </header>
 

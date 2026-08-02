@@ -247,9 +247,34 @@ details.host-section .body { padding: 12px; }
 
 /* ------------------------------------------------------------- langue */
 
-nav select.lang {
-  background: var(--bg-3); color: var(--fg); border: 1px solid var(--line);
-  border-radius: 8px; padding: 5px 8px; font: inherit; font-size: 13px;
-  cursor: pointer; margin-left: 6px;
+.lang { position: relative; margin-left: 8px; }
+
+.lang > button {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg-3); color: var(--fg-dim);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 5px 9px; cursor: pointer; font-size: 12.5px;
 }
-nav select.lang:hover { border-color: var(--accent); }
+.lang > button:hover { color: var(--fg); border-color: var(--accent); }
+.lang > button i { font-style: normal; font-size: 10px; opacity: .7; }
+
+.lang svg {
+  width: 20px; height: 14px; flex: 0 0 auto; display: block;
+  border-radius: 2px; border: 1px solid rgba(255, 255, 255, .18);
+}
+
+.lang > ul {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 50;
+  margin: 0; padding: 4px; list-style: none; min-width: 160px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+}
+.lang > ul[hidden] { display: none; }
+.lang > ul li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 9px; border-radius: 7px; cursor: pointer;
+  color: var(--fg-dim); font-size: 13px; white-space: nowrap;
+}
+.lang > ul li:hover { background: var(--bg-3); color: var(--fg); }
+.lang > ul li.on { color: var(--fg); }
+.lang > ul li.on::after { content: "✓"; margin-left: auto; color: var(--accent); }

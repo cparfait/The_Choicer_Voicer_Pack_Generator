@@ -1,5 +1,7 @@
 # 🎙️ The Choicer Voicer — Createur de packs
 
+*[English version](README.en.md)*
+
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cristof-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/cristof)
 
 **Transforme n'importe quelle video en pack jouable, sans jamais ouvrir un terminal
@@ -160,6 +162,12 @@ Tout est couvert, pas seulement les voix.
 | 🏛️ **Studio** | le decor : musique, modele 3D, ecrans |
 | 🖥️ **Menu** | l'habillage du menu principal, jusqu'aux couleurs de l'overlay |
 | 💬 **Chatter** | les sons declenches par les mots-cles du chat Twitch |
+
+> **Les personnages posent sur le sol du plateau.** Le jeu ne redimensionne ni
+> les juges ni le candidat : une image trop courte a la tete sous le pupitre,
+> donc invisible. L'outil ramene ces images a **1000 px de haut**, ratio
+> conserve, au moment de la generation — et te previent quand l'agrandissement
+> risque d'etre visible.
 
 Le pack **animateur** part d'un modele francais complet : les repliques du
 `config_host.json` d'origine sont traduites, avec plusieurs variantes possibles
