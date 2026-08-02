@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Createur de packs — The Choicer Voicer</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>Createur de packs <span data-notr>The Choicer Voicer</span></h1>
+    <nav>
+      <button data-view="home" class="active">Projets</button>
+      <button data-view="library">Packs installes</button>
+      <button data-view="settings">Reglages</button>
+      <button data-view="help">Aide</button>
+      <select id="lang-select" class="lang" title="Langue" data-notr></select>
+    </nav>
+  </header>
+
+  <main>
+    <section id="view-home" class="view active"></section>
+    <section id="view-editor" class="view"></section>
+    <section id="view-library" class="view"></section>
+    <section id="view-settings" class="view"></section>
+    <section id="view-help" class="view"></section>
+  </main>
+</div>
+
+<div id="toasts"></div>
+<audio id="player" preload="metadata"></audio>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>
