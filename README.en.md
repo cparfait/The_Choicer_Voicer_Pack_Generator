@@ -76,8 +76,9 @@ the folder holding it; leave it empty to use the one from your `PATH`.
 ### 🌍 Three languages
 
 The picker in the top right switches the interface between **French**,
-**English** and **Spanish** — including server messages and pack labels. Your
-choice is remembered between sessions.
+**English** and **Spanish** — including server messages and pack labels. The
+tool starts in English, like the game; your choice is then remembered between
+sessions.
 
 ---
 

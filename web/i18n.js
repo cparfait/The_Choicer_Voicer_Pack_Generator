@@ -753,16 +753,20 @@ const DICT = {
 
 /* ------------------------------------------------------------------ moteur */
 
-let current = 'fr';
+/* L'anglais par defaut : le jeu est anglophone, sa communaute aussi. Le
+ * francais reste la langue source du dictionnaire, pas celle de l'accueil. */
+const DEFAULT_LANG = 'en';
+
+let current = DEFAULT_LANG;
 try {
-  current = localStorage.getItem(STORAGE_KEY) || 'fr';
-} catch { /* stockage refuse : on reste en francais */ }
-if (!LANGUAGES.some((l) => l.code === current)) current = 'fr';
+  current = localStorage.getItem(STORAGE_KEY) || DEFAULT_LANG;
+} catch { /* stockage refuse : on garde la langue par defaut */ }
+if (!LANGUAGES.some((l) => l.code === current)) current = DEFAULT_LANG;
 
 export const getLang = () => current;
 
 export function setLang(code) {
-  current = LANGUAGES.some((l) => l.code === code) ? code : 'fr';
+  current = LANGUAGES.some((l) => l.code === code) ? code : DEFAULT_LANG;
   try { localStorage.setItem(STORAGE_KEY, current); } catch { /* sans importance */ }
   document.documentElement.lang = current;
 }

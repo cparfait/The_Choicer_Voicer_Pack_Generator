@@ -78,7 +78,8 @@ ou le dossier qui le contient ; vide, l'outil prend celui du `PATH`.
 
 Le selecteur en haut a droite bascule l'interface entre **francais**, **anglais**
 et **espagnol** — y compris les messages du serveur et les libelles des packs.
-Le choix est retenu d'une session a l'autre.
+L'outil demarre en anglais, comme le jeu ; le choix est ensuite retenu d'une
+session a l'autre.
 
 ---
 
