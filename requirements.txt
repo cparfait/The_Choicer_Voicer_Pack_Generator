@@ -3,6 +3,19 @@ uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 yt-dlp>=2025.1.1
 
-# Transcription automatique (optionnel, installe ~1-2 Go de dependances).
-# Decommente la ligne suivante, ou lance : pip install faster-whisper
+# Les lignes suivantes sont facultatives : sans elles, l'outil fonctionne, il
+# se contente de desactiver le bouton correspondant et de dire quoi installer.
+
+# Transcription automatique (~1-2 Go de dependances) :
 # faster-whisper>=1.0.3
+
+# Piste d'ambiance : separe les voix de la musique. Tire PyTorch, plusieurs Go.
+# demucs>=4.0.1
+
+# Personnages : detourage sur fond transparent, et image tiree d'une video.
+# rembg>=2.0.50
+# onnxruntime>=1.17
+# opencv-python-headless>=4.9
+
+# Detection des locuteurs. Le modele demande un jeton Hugging Face (Reglages).
+# pyannote.audio>=3.1

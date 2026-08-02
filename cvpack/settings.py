@@ -46,6 +46,9 @@ DEFAULTS = {
     "ffprobe": "",
     "whisper_model": "small",
     "whisper_device": "auto",
+    # Jeton Hugging Face, pour la detection des locuteurs seulement : son
+    # modele n'est telechargeable qu'apres acceptation de ses conditions.
+    "hf_token": "",
     "clip_format": "ogg",  # ogg | wav | mp3
     "normalize": True,
     "target_lufs": -16.0,

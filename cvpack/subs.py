@@ -16,6 +16,8 @@ import json
 import re
 from pathlib import Path
 
+from . import media
+
 _TIME_RE = re.compile(
     r"(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})\s*-->\s*(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})"
 )
@@ -150,26 +152,33 @@ def _clean(cues: list[dict]) -> list[dict]:
 # Exploitation
 # --------------------------------------------------------------------------
 
-def _split_long(start: float, end: float, text: str, max_len: float) -> list[dict]:
-    """Coupe en parts egales une replique trop longue pour un seul clip."""
+def _split_long(start: float, end: float, text: str, max_len: float,
+                pauses: list[tuple[float, float]] | None = None) -> list[dict]:
+    """Coupe une replique trop longue, dans ses silences quand on les connait.
+
+    Le texte suit le decoupage au prorata du temps : on ne sait pas quel mot
+    est prononce quand, mais une replique lue a peu pres regulierement tombe
+    juste a quelques mots pres.
+    """
     length = end - start
     if max_len <= 0 or length <= max_len:
         return [{"start": start, "end": end, "text": text}]
-    pieces = int(length // max_len) + (1 if length % max_len else 0)
+
+    edges = [start] + media.split_points(start, end, max_len, pauses) + [end]
     words = text.split()
-    step = length / pieces
     parts = []
-    for index in range(pieces):
-        share = words[index * len(words) // pieces:(index + 1) * len(words) // pieces]
-        parts.append({"start": start + index * step,
-                      "end": min(end, start + (index + 1) * step),
-                      "text": " ".join(share)})
+    for left, right in zip(edges, edges[1:]):
+        first = round(len(words) * (left - start) / length)
+        last = round(len(words) * (right - start) / length)
+        parts.append({"start": left, "end": right,
+                      "text": " ".join(words[first:last])})
     return parts
 
 
 def segments_from_cues(cues: list[dict], min_len: float = 0.7, max_len: float = 6.0,
                        merge_gap: float = 0.35, pad: float = 0.05,
-                       duration: float | None = None) -> list[dict]:
+                       duration: float | None = None,
+                       pauses: list[tuple[float, float]] | None = None) -> list[dict]:
     """Un clip par replique, en fusionnant les cues trop courtes ou collees."""
     groups: list[dict] = []
     for cue in cues:
@@ -199,7 +208,7 @@ def segments_from_cues(cues: list[dict], min_len: float = 0.7, max_len: float = 
             end = min(end, duration)
         if end - start < 0.25:
             continue
-        segments.extend(_split_long(start, end, group["text"], max_len))
+        segments.extend(_split_long(start, end, group["text"], max_len, pauses))
 
     # La marge ajoutee de chaque cote peut faire mordre un clip sur le
     # suivant : le meme son se retrouverait dans deux fichiers.

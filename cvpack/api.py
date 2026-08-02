@@ -16,12 +16,18 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from . import build as builder
-from . import inifmt, jobs, media, project as projects, settings, subs, transcribe, ytdl
+from . import clips as cliptools
+from . import diarize, inifmt, jobs, media, portrait, project as projects
+from . import separate, settings, subs, transcribe, ytdl
 from .specs import (SOURCE_AUDIO_EXTS, SOURCE_VIDEO_EXTS, SPECS, public_specs)
 
 router = APIRouter(prefix="/api")
 
 CHUNK = 512 * 1024
+
+# Seuil de detection des respirations : trop fin pour separer deux repliques,
+# assez fin pour couper un passage trop long sans trancher un mot.
+FINE_SILENCE = 0.12
 
 
 # --------------------------------------------------------------------------
@@ -109,6 +115,9 @@ def bootstrap():
         "tools": media.check_tools(),
         "whisper": transcribe.status(),
         "ytdl": ytdl.status(),
+        "demucs": separate.status(),
+        "portrait": portrait.status(),
+        "diarize": diarize.status(),
         "platform": sys.platform,
     }
 
@@ -117,7 +126,9 @@ def bootstrap():
 async def update_settings(request: Request):
     patch = await request.json()
     return {"settings": settings.save(patch), "game": settings.game_dir_status(),
-            "tools": media.check_tools(), "whisper": transcribe.status()}
+            "tools": media.check_tools(), "whisper": transcribe.status(),
+            "demucs": separate.status(), "portrait": portrait.status(),
+            "diarize": diarize.status()}
 
 
 @router.post("/gamedata/ensure")
@@ -488,6 +499,20 @@ def get_peaks(project_id: str):
 # Decoupe automatique
 # --------------------------------------------------------------------------
 
+def _merge_repeats(found: projects.Project, new_clips: list[dict],
+                   params: dict) -> int:
+    """En mode Dub, une replique repetee devient un clip a plusieurs instants.
+
+    Hors mode Dub les timestamps ne servent a rien : chaque replique garde
+    son clip.
+    """
+    if not params.get("merge_repeats", True):
+        return 0
+    if not found.data.get("dub", {}).get("enabled"):
+        return 0
+    return cliptools.merge_repeated(new_clips)
+
+
 def _autosplit(job, project_id: str, params: dict) -> dict:
     found = _project(project_id)
     source = found.master_audio if found.master_audio.exists() else found.source_path()
@@ -495,11 +520,16 @@ def _autosplit(job, project_id: str, params: dict) -> dict:
         raise RuntimeError("Aucune source a analyser")
 
     job.progress(0.15, "Detection des silences")
-    silences = media.detect_silences(
+    minimum = float(params.get("min_silence", 0.35))
+    # Une seule passe ffmpeg, avec le seuil le plus fin : les silences longs
+    # decoupent les prises de parole, les courts servent a couper proprement
+    # un passage qui depasse la duree maxi.
+    pauses = media.detect_silences(
         Path(source),
         noise_db=float(params.get("noise_db", -32.0)),
-        min_silence=float(params.get("min_silence", 0.35)),
+        min_silence=min(FINE_SILENCE, minimum),
     )
+    silences = [p for p in pauses if p[1] - p[0] >= minimum]
     duration = float(found.data.get("source", {}).get("duration") or media.duration_of(source))
 
     job.progress(0.7, "Construction des segments")
@@ -508,6 +538,7 @@ def _autosplit(job, project_id: str, params: dict) -> dict:
         min_len=float(params.get("min_len", 0.7)),
         max_len=float(params.get("max_len", 6.0)),
         pad=float(params.get("pad", 0.08)),
+        pauses=pauses,
     )
 
     # Decouper sur les silences n'empeche pas d'avoir les sous-titres : quand
@@ -531,6 +562,7 @@ def _autosplit(job, project_id: str, params: dict) -> dict:
             "gain_db": 0.0,
             "enabled": True,
         })
+    merged = _merge_repeats(found, clips, params)
     if params.get("replace", True):
         for old in found.clip_images_dir.glob("*"):
             old.unlink(missing_ok=True)
@@ -560,7 +592,7 @@ def _autosplit(job, project_id: str, params: dict) -> dict:
         found.save()
 
     job.progress(1.0, f"{len(clips)} clips")
-    return {"clips": found.data["clips"], "count": len(clips)}
+    return {"clips": found.data["clips"], "count": len(clips), "merged": merged}
 
 
 @router.post("/projects/{project_id}/autosplit")
@@ -649,6 +681,20 @@ def _segment_from_transcript(job, project_id: str, params: dict) -> dict:
         raise RuntimeError("Aucun transcript disponible pour ce projet.")
 
     duration = float(found.data.get("source", {}).get("duration") or 0) or None
+
+    # Une replique plus longue que la duree maxi doit etre coupee : autant le
+    # faire dans une respiration plutot qu'au milieu d'un mot.
+    pauses: list[tuple[float, float]] = []
+    audio = found.master_audio if found.master_audio.exists() else found.source_path()
+    if audio:
+        job.progress(0.1, "Detection des silences")
+        try:
+            pauses = media.detect_silences(
+                Path(audio), noise_db=float(params.get("noise_db", -32.0)),
+                min_silence=FINE_SILENCE)
+        except media.MediaError:
+            pauses = []
+
     job.progress(0.2, "Construction des clips")
     segments = subs.segments_from_cues(
         cues,
@@ -657,6 +703,7 @@ def _segment_from_transcript(job, project_id: str, params: dict) -> dict:
         merge_gap=float(params.get("merge_gap", 0.35)),
         pad=float(params.get("pad", 0.05)),
         duration=duration,
+        pauses=pauses,
     )
 
     base = projects.safe_name(params.get("base_name") or found.data.get("name") or "clip")
@@ -675,6 +722,7 @@ def _segment_from_transcript(job, project_id: str, params: dict) -> dict:
             "gain_db": 0.0,
             "enabled": True,
         })
+    merged = _merge_repeats(found, clips, params)
     if params.get("replace", True):
         for old in found.clip_images_dir.glob("*"):
             old.unlink(missing_ok=True)
@@ -701,7 +749,7 @@ def _segment_from_transcript(job, project_id: str, params: dict) -> dict:
         found.save()
 
     job.progress(1.0, f"{len(clips)} clips")
-    return {"clips": found.data["clips"], "count": len(clips)}
+    return {"clips": found.data["clips"], "count": len(clips), "merged": merged}
 
 
 @router.post("/projects/{project_id}/transcript/segment")
@@ -781,6 +829,97 @@ async def start_transcription(project_id: str, request: Request):
 
 
 # --------------------------------------------------------------------------
+# Detection des locuteurs (pyannote)
+# --------------------------------------------------------------------------
+
+def _diarize(job, project_id: str, params: dict) -> dict:
+    found = _project(project_id)
+    source = found.master_audio if found.master_audio.exists() else found.source_path()
+    if not source:
+        raise RuntimeError("Aucune source a analyser")
+
+    job.progress(0.05, "Chargement du modele")
+    turns = diarize.speakers(Path(source), count=params.get("speakers") or None)
+    if not turns:
+        raise RuntimeError("Aucune voix distinguee dans cette source.")
+
+    job.progress(0.85, "Attribution des personnages")
+    names = diarize.friendly_names(turns)
+    overwrite = bool(params.get("overwrite"))
+    filled = 0
+    for clip in found.data.get("clips", []):
+        if not overwrite and (clip.get("characters") or []):
+            continue
+        label = diarize.label_for_range(turns, float(clip["start"]), float(clip["end"]))
+        if not label:
+            continue
+        clip["characters"] = [names[label]]
+        filled += 1
+
+    # Les noms proposes alimentent la liste du mode Dub : l'utilisateur les
+    # renomme une fois, la correspondance suit dans tous les clips.
+    dub = found.data.setdefault("dub", {})
+    known = list(dub.get("characters") or [])
+    for name in names.values():
+        if name not in known:
+            known.append(name)
+    dub["characters"] = known
+    found.save()
+    job.progress(1.0, f"{len(names)} voix")
+    return {"clips": found.data.get("clips", []), "speakers": len(names),
+            "filled": filled, "names": list(names.values())}
+
+
+@router.post("/projects/{project_id}/diarize")
+async def start_diarization(project_id: str, request: Request):
+    _project(project_id)
+    state = diarize.status()
+    if not state["available"]:
+        raise HTTPException(400, "pyannote.audio n'est pas installe. "
+                                 "Lance : pip install pyannote.audio")
+    if not state["token"]:
+        raise HTTPException(400, "Aucun jeton Hugging Face dans les Reglages : le "
+                                 "modele de diarisation en demande un.")
+    params = await request.json() if await request.body() else {}
+    return {"job": jobs.submit("Detection des locuteurs", _diarize, project_id, params)}
+
+
+# --------------------------------------------------------------------------
+# Piste d'ambiance (Demucs)
+# --------------------------------------------------------------------------
+
+def _backing_track(job, project_id: str, params: dict) -> dict:
+    found = _project(project_id)
+    source = found.master_audio if found.master_audio.exists() else found.source_path()
+    if not source:
+        raise RuntimeError("Aucune source a separer")
+
+    job.progress(0.05, "Separation des voix")
+    fmt = settings.get("clip_format") or "ogg"
+    stored = f"_backing_track.{fmt}"
+    destination = found.assets_dir / stored
+    for old in found.assets_dir.glob("_backing_track.*"):
+        old.unlink(missing_ok=True)
+    separate.backing_track(Path(source), destination,
+                           progress_cb=lambda f: job.progress(0.05 + 0.9 * f,
+                                                              "Separation des voix"))
+    found.data.setdefault("assets", {})["_backing_track"] = stored
+    found.data.setdefault("asset_names", {})["_backing_track"] = stored
+    found.save()
+    job.progress(1.0, "Piste d'ambiance prete")
+    return {"assets": found.data["assets"], "asset_names": found.data.get("asset_names", {})}
+
+
+@router.post("/projects/{project_id}/backing-track")
+async def start_backing_track(project_id: str, request: Request):
+    _project(project_id)
+    if not separate.available():
+        raise HTTPException(400, "demucs n'est pas installe. Lance : pip install demucs")
+    params = await request.json() if await request.body() else {}
+    return {"job": jobs.submit("Piste d'ambiance", _backing_track, project_id, params)}
+
+
+# --------------------------------------------------------------------------
 # Assets (emplacements de fichiers)
 # --------------------------------------------------------------------------
 
@@ -832,6 +971,98 @@ def get_asset(project_id: str, slot: str, request: Request):
     if not path:
         raise HTTPException(404, "Aucun fichier pour cet emplacement")
     return _ranged_file(path, request)
+
+
+def _stage_slot(type_: str, slot: str) -> dict:
+    definition = next((s for s in SPECS[type_].get("slots", []) if s["name"] == slot), None)
+    if not definition or not definition.get("stage"):
+        raise HTTPException(400, "Cet emplacement n'est pas un personnage du plateau.")
+    return definition
+
+
+def _cutout(job, project_id: str, slot: str) -> dict:
+    found = _project(project_id)
+    source = found.asset(slot)
+    if not source:
+        raise RuntimeError("Aucune image pour cet emplacement.")
+    job.progress(0.1, "Detourage du personnage")
+    # L'original est garde a cote : le detourage automatique se rate parfois,
+    # et repartir de la photo evite de la reimporter.
+    backup = found.assets_dir / f"{slot}.original{source.suffix.lower()}"
+    if not backup.exists():
+        backup.write_bytes(source.read_bytes())
+    stored = f"{slot}.png"
+    portrait.cutout(source, found.assets_dir / stored)
+    if source.name != stored:
+        source.unlink(missing_ok=True)
+    found.data.setdefault("assets", {})[slot] = stored
+    found.save()
+    job.progress(1.0, "Personnage detoure")
+    return {"assets": found.data["assets"], "asset_names": found.data.get("asset_names", {})}
+
+
+@router.post("/projects/{project_id}/assets/{slot}/cutout")
+async def cutout_asset(project_id: str, slot: str):
+    found = _project(project_id)
+    _stage_slot(found.type, slot)
+    if not portrait.status()["cutout"]:
+        raise HTTPException(400, "rembg n'est pas installe. "
+                                 "Lance : pip install rembg onnxruntime")
+    return {"job": jobs.submit("Detourage", _cutout, project_id, slot)}
+
+
+@router.post("/projects/{project_id}/assets/{slot}/restore")
+def restore_asset(project_id: str, slot: str):
+    """Revient a l'image d'avant detourage."""
+    found = _project(project_id)
+    _stage_slot(found.type, slot)
+    backup = next(found.assets_dir.glob(f"{slot}.original.*"), None)
+    if not backup:
+        raise HTTPException(404, "Aucune image d'origine conservee.")
+    stored = f"{slot}{backup.suffix.lower()}"
+    for old in found.assets_dir.glob(f"{slot}.*"):
+        if old != backup:
+            old.unlink(missing_ok=True)
+    (found.assets_dir / stored).write_bytes(backup.read_bytes())
+    backup.unlink(missing_ok=True)
+    found.data.setdefault("assets", {})[slot] = stored
+    found.save()
+    return {"assets": found.data["assets"], "asset_names": found.data.get("asset_names", {})}
+
+
+def _portrait_from_video(job, project_id: str, slot: str, path: str) -> dict:
+    found = _project(project_id)
+    video = Path(path)
+    if not video.is_file():
+        raise RuntimeError("Fichier video introuvable.")
+    job.progress(0.1, "Recherche d'un visage")
+    target = found.assets_dir / f"{slot}.png"
+    for old in found.assets_dir.glob(f"{slot}.*"):
+        old.unlink(missing_ok=True)
+    at = portrait.frame_with_face(video, target)
+    if portrait.status()["cutout"]:
+        job.progress(0.7, "Detourage du personnage")
+        try:
+            portrait.cutout(target, target)
+        except RuntimeError:
+            pass
+    found.data.setdefault("assets", {})[slot] = target.name
+    found.data.setdefault("asset_names", {})[slot] = f"{video.name} @ {at:.1f}s"
+    found.save()
+    job.progress(1.0, "Image prete")
+    return {"assets": found.data["assets"], "asset_names": found.data.get("asset_names", {})}
+
+
+@router.post("/projects/{project_id}/assets/{slot}/from-video")
+async def portrait_from_video(project_id: str, slot: str, request: Request):
+    found = _project(project_id)
+    _stage_slot(found.type, slot)
+    payload = await request.json()
+    path = (payload.get("path") or "").strip()
+    if not path:
+        raise HTTPException(400, "Chemin de la video manquant")
+    return {"job": jobs.submit("Image depuis une video", _portrait_from_video,
+                               project_id, slot, path)}
 
 
 # --------------------------------------------------------------------------

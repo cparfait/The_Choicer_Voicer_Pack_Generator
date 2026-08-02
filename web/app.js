@@ -512,6 +512,14 @@ function slotHtml(slot, project) {
       </div>
       <div class="actions">
         <button class="btn small" data-pick>Choisir</button>
+        ${slot.stage ? `
+          <button class="btn small ghost" data-from-video
+                  title="Prendre une image dans une video">Depuis une video</button>
+          ${stored ? `
+            <button class="btn small ghost" data-cutout
+                    title="Enlever le fond et poser le personnage sur le sol">Detourer</button>
+            <button class="btn small ghost" data-restore
+                    title="Revenir a l'image d'origine">&#8634;</button>` : ''}` : ''}
         ${stored ? '<button class="btn small ghost danger" data-clear>Retirer</button>' : ''}
       </div>
     </div>`;
@@ -543,6 +551,38 @@ function wireSlots(host) {
         const result = await del(`/projects/${project.id}/assets/${name}`);
         project.assets = result.assets;
         renderEditor();
+      } catch (error) { fail(error); }
+    });
+
+    // Personnages du plateau : detourage et image tiree d'une video.
+    const applyAssets = (result) => {
+      project.assets = result.assets;
+      project.asset_names = result.asset_names || project.asset_names;
+      renderEditor();
+    };
+    element.querySelector('[data-cutout]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = t('Detourage...');
+      try {
+        const { job } = await post(`/projects/${project.id}/assets/${name}/cutout`);
+        applyAssets(await waitJob(job));
+        toast(t('Personnage detoure.'), 'success');
+      } catch (error) { fail(error); button.disabled = false; button.textContent = t('Detourer'); }
+    });
+    element.querySelector('[data-restore]')?.addEventListener('click', async () => {
+      try {
+        applyAssets(await post(`/projects/${project.id}/assets/${name}/restore`));
+        toast(t('Image d\'origine retablie.'), 'success');
+      } catch (error) { fail(error); }
+    });
+    element.querySelector('[data-from-video]')?.addEventListener('click', async () => {
+      const path = await browseFile('video');
+      if (!path) return;
+      try {
+        const { job } = await post(`/projects/${project.id}/assets/${name}/from-video`, { path });
+        applyAssets(await waitJob(job));
+        toast(t('Image extraite de la video.'), 'success');
       } catch (error) { fail(error); }
     });
   });
@@ -1141,7 +1181,8 @@ function renderVoiceEditor() {
       <h2>Mode Dub</h2>
       <p class="hint">Un pack devient un pack Dub des qu'il contient <code>dub_video.ogv</code>.
         La video source est convertie en OGV/Theora — le seul format lu par Godot.
-        Limite conseillee : 6 s par clip.</p>
+        Limite conseillee : 6 s par clip. La video ne s'affiche pas pendant
+        l'enregistrement : le jeu la joue a la fin de la manche, doublee avec tes prises.</p>
       <label class="row tight" style="margin:12px 0">
         <input type="checkbox" id="dub-enabled" ${project.dub?.enabled ? 'checked' : ''}>
         <span>Generer un pack Dub a partir de la video source</span>
@@ -1161,6 +1202,43 @@ function renderVoiceEditor() {
           <input type="checkbox" id="dub-suffix" ${options.timestamp_suffix ? 'checked' : ''}>
           <span class="hint">Ajouter le timestamp au nom du fichier (ex. 07_MonClip_44-048)</span>
         </label>
+        <label class="row tight" style="margin:0 0 12px">
+          <input type="checkbox" id="dub-clip-images"
+                 ${options.dub_clip_images === false ? '' : 'checked'}>
+          <span class="hint">Joindre une image a chaque clip (les packs Dub de la communaute
+            n'y mettent souvent que des portraits de personnages)</span>
+        </label>
+
+        <div class="group-title">Detection des locuteurs</div>
+        <p class="hint">Repartit les clips entre les voix de la source, pour remplir la
+          colonne Personnage sans tout saisir a la main.</p>
+        <div class="row" style="margin:10px 0">
+          <button class="btn" id="dub-diarize"
+                  ${state.boot.diarize.available && state.boot.diarize.token ? '' : 'disabled'}>
+            Detecter les locuteurs</button>
+          <label class="row tight" style="margin:0"><input type="checkbox" id="dub-diarize-overwrite">
+            <span class="hint">Ecraser les personnages deja attribues</span></label>
+          <div class="spacer"></div>
+          <span class="hint">${!state.boot.diarize.available
+            ? 'pyannote.audio non installe — voir Reglages'
+            : (state.boot.diarize.token ? 'Pret' : 'Jeton Hugging Face manquant — voir Reglages')}</span>
+        </div>
+
+        <div class="group-title">Piste d'ambiance</div>
+        <p class="hint">La bande son sans les voix, jouee pendant que tu doubles.
+          Demucs la fabrique depuis la source.</p>
+        <div class="row" style="margin:10px 0">
+          <button class="btn" id="dub-backing"
+                  ${state.boot.demucs.available ? '' : 'disabled'}>
+            Separer les voix de la musique</button>
+          <div class="spacer"></div>
+          <span class="hint">${state.boot.demucs.available
+            ? `demucs ${escapeHtml(state.boot.demucs.model)}`
+            : 'demucs non installe — voir Reglages'}</span>
+        </div>
+        <div class="progress" id="dub-progress" style="display:none"><div></div></div>
+        <p class="hint" id="dub-message"></p>
+
         <div class="grid two">
           ${slotHtml(spec.slots.find((s) => s.name === '_backing_track'), project)}
         </div>
@@ -1295,7 +1373,8 @@ function wireVoiceSplit(host) {
         message.textContent = j.message || '';
       });
       project.clips = result.clips;
-      message.textContent = t('%s clips detectes.', result.count);
+      message.textContent = t('%s clips detectes.', result.count)
+        + (result.merged ? ' ' + t('%s repliques repetees fusionnees.', result.merged) : '');
       state.wave?.setRegions(project.clips);
       renderClipTable();
       toast(t('%s clips detectes.', result.count), 'success');
@@ -1350,7 +1429,8 @@ async function wireVoiceTranscript(host) {
       project.clips = result.clips;
       state.wave?.setRegions(project.clips);
       renderClipTable();
-      message.textContent = t('%s clips crees, sous-titres inclus.', result.count);
+      message.textContent = t('%s clips crees, sous-titres inclus.', result.count)
+        + (result.merged ? ' ' + t('%s repliques repetees fusionnees.', result.merged) : '');
       toast(t('%s clips crees depuis les sous-titres.', result.count), 'success');
     } catch (error) { fail(error); }
     finally { setTimeout(() => { progress.style.display = 'none'; }, 700); }
@@ -1765,6 +1845,59 @@ function wireVoiceDub(host) {
     project.dub.characters = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
     saveProject();
   };
+  host.querySelector('#dub-clip-images').onchange = (e) => {
+    project.options.dub_clip_images = e.target.checked;
+    saveProject();
+  };
+
+  const progress = host.querySelector('#dub-progress');
+  const bar = progress.querySelector('div');
+  const message = host.querySelector('#dub-message');
+  const run = async (button, label, starter, done) => {
+    button.disabled = true;
+    progress.style.display = '';
+    bar.style.width = '0%';
+    message.textContent = label;
+    try {
+      const { job } = await starter();
+      const result = await waitJob(job, (j) => {
+        bar.style.width = Math.round(j.progress * 100) + '%';
+        message.textContent = t(j.message || '') || label;
+      });
+      done(result);
+    } catch (error) { fail(error); message.textContent = ''; }
+    finally {
+      button.disabled = false;
+      setTimeout(() => { progress.style.display = 'none'; }, 900);
+    }
+  };
+
+  const diarizeButton = host.querySelector('#dub-diarize');
+  diarizeButton.onclick = () => run(diarizeButton, t('Detection des locuteurs'),
+    async () => {
+      await saveNow();
+      return post(`/projects/${project.id}/diarize`, {
+        overwrite: host.querySelector('#dub-diarize-overwrite').checked,
+      });
+    },
+    (result) => {
+      project.clips = result.clips;
+      project.dub.characters = [...new Set([...(project.dub.characters || []), ...result.names])];
+      renderClipTable();
+      message.textContent = t('%s voix trouvees, %s clips attribues.',
+                              result.speakers, result.filled);
+      toast(t('%s voix trouvees, %s clips attribues.', result.speakers, result.filled), 'success');
+    });
+
+  const backingButton = host.querySelector('#dub-backing');
+  backingButton.onclick = () => run(backingButton, t('Separation des voix'),
+    () => post(`/projects/${project.id}/backing-track`),
+    (result) => {
+      project.assets = result.assets;
+      project.asset_names = result.asset_names;
+      renderVoiceEditor();
+      toast(t('Piste d\'ambiance prete.'), 'success');
+    });
 }
 
 /* --------------------------------------------------- vue packs installes */
@@ -1899,6 +2032,41 @@ function renderSettings() {
     </div>
 
     <div class="card">
+      <h2>Piste d'ambiance (demucs)</h2>
+      <p class="hint">${state.boot.demucs.available
+        ? t('Installe.') + ` demucs ${escapeHtml(state.boot.demucs.version || '')}`
+        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install demucs</code>'}</p>
+      <p class="hint">Separe les voix de la musique pour fabriquer
+        <code>_backing_track</code> automatiquement. Tire PyTorch avec lui : compter
+        plusieurs Go.</p>
+    </div>
+
+    <div class="card">
+      <h2>Personnages (rembg, OpenCV)</h2>
+      <p class="hint">${state.boot.portrait.cutout
+        ? t('Installe.') + ' rembg'
+        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install rembg onnxruntime</code>'}
+        &middot; ${state.boot.portrait.face
+          ? 'OpenCV ' + t('Installe.')
+          : '<code>pip install opencv-python-headless</code>'}</p>
+      <p class="hint">rembg detoure un juge ou le candidat, OpenCV va chercher dans une
+        video l'image ou le visage est le plus net.</p>
+    </div>
+
+    <div class="card">
+      <h2>Detection des locuteurs (pyannote)</h2>
+      <p class="hint">${state.boot.diarize.available
+        ? t('Installe.')
+        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install pyannote.audio</code>'}</p>
+      <p class="hint">Le modele est sous conditions : accepte-les sur
+        <a href="https://hf.co/pyannote/speaker-diarization-3.1" target="_blank"
+           rel="noopener">Hugging Face</a>, puis colle ici un jeton d'acces.</p>
+      <label class="field" style="max-width:520px;margin-top:12px"><span>Jeton Hugging Face</span>
+        <input type="password" id="set-hf" value="${escapeAttr(s.hf_token || '')}"
+               placeholder="hf_..."></label>
+    </div>
+
+    <div class="card">
       <h2>Import depuis le web (yt-dlp)</h2>
       <div class="issue ${state.boot.ytdl.available ? 'info' : 'warning'}">
         ${state.boot.ytdl.available
@@ -1930,6 +2098,7 @@ function renderSettings() {
         normalize: host.querySelector('#set-normalize').checked,
         whisper_model: host.querySelector('#set-model').value,
         whisper_device: host.querySelector('#set-device').value,
+        hf_token: host.querySelector('#set-hf').value.trim(),
         author: host.querySelector('#set-author').value.trim(),
       });
       Object.assign(state.boot, result);

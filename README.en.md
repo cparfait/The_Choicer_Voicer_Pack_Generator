@@ -69,6 +69,12 @@ locally and your projects stay in `data/`.
 | ffmpeg / ffprobe | every conversion | **yes** |
 | yt-dlp | importing from YouTube and friends | installed with the dependencies |
 | faster-whisper | automatic transcription | optional — `pip install faster-whisper` |
+| demucs | backing track without the voices | optional — `pip install demucs` |
+| rembg + OpenCV | cutting characters out, stills from a video | optional — `pip install rembg onnxruntime opencv-python-headless` |
+| pyannote.audio | speaker detection | optional — `pip install pyannote.audio` |
+
+None of the last four is ever required: without them the matching button stays
+greyed out and tells you what to install.
 
 The ffmpeg path is set in **Settings**. The field takes either the executable or
 the folder holding it; leave it empty to use the one from your `PATH`.
@@ -95,9 +101,9 @@ video thumbnail, and **downloads the subtitles** if there are any — official
 ones by preference, automatic ones otherwise.
 
 > **If the source has a video track, Dub mode turns itself on.** The pack will
-> carry the video, which plays behind the clips, like the community packs do.
-> The checkbox in the *Dub mode* block turns it off if you would rather it did
-> not, and that choice is remembered.
+> carry `dub_video.ogv`, which the game plays at the end of the round with your
+> takes over it. The checkbox in the *Dub mode* block turns it off if you would
+> rather it did not, and that choice is remembered.
 
 ### 2. Split
 
@@ -113,7 +119,13 @@ Two methods, one button each:
   resulting clips.
 
 Either way, an image is taken from the video at the middle of each clip: every
-sound arrives with its picture.
+sound arrives with its picture. Two details make a real difference:
+
+- **a line that is too long is cut inside a silence**, never mid-word: the tool
+  looks for the widest breath in the passage;
+- **in Dub mode, a line that comes back several times becomes a single clip**
+  carrying several `dub_timestamps`. The format allows it, and the game will dub
+  the same take at each occurrence.
 
 ### 3. Adjust with the mouse
 
@@ -172,8 +184,14 @@ Everything is covered, not just voices.
 > - **a transparent margin under the feet** — the character floats, or vanishes.
 >   Empty margins are trimmed before scaling.
 >
-> One thing nobody can do for you: **cutting out**. A rectangular photo is drawn
-> in full, background included. The *Check* button tells you so.
+> Then there is **cutting out**: a rectangular photo is drawn in full,
+> background included. The *Check* button tells you so, and the **Cut out**
+> button (rembg) does the work — on a judge photo it goes from 0 % to ~58 %
+> transparency, the profile of the packs that display properly.
+>
+> The **From a video** button even fetches the still straight out of a film:
+> OpenCV keeps the moment where the face is clearest, the tool crops it to the
+> stage format and cuts it out in passing.
 
 The **host** pack starts from a complete French template: the lines of the
 original `config_host.json` are translated, with several possible variants per
@@ -184,14 +202,27 @@ line (the game picks one at random). Available variables: `<player>`,
 
 ## 🎥 Dub mode
 
-A pack becomes a **Dub pack** as soon as it contains `dub_video.ogv`. In game the
-video plays while you imitate — that is what separates a pack with presence from
-a list of sounds.
+A pack becomes a **Dub pack** as soon as it contains `dub_video.ogv`.
 
-The tool handles it: conversion to OGV/Theora (quality and height adjustable),
-one `.ini` per clip with its subtitle and its timestamp on the video timeline,
-and a `_dub_timestamps.md` summary. You can also name the characters and mark
-some clips as "Dub only".
+**When does the video show?** Not while you record: there the game shows the
+clip image, community packs included. The video comes **at the end of the
+round**, once every line has been performed — the game plays it in full and lays
+your takes over it, each at the moment given by its `dub_timestamps`. The scene
+replayed in your voice: that is the point of Dub mode. So the game has to be
+started in **Dub Mode**, not the normal one.
+
+The tool handles the rest: conversion to OGV/Theora (quality and height
+adjustable), one `.ini` per clip with its subtitle and its timestamps, and a
+`_dub_timestamps.md` summary. You can also name the characters and mark some
+clips as "Dub only".
+
+Two buttons make Dub mode less tedious, each with its optional dependency:
+
+- **Split voices from music** (demucs) builds `_backing_track` from the source:
+  the original soundtrack without the voices, playing while you dub;
+- **Detect speakers** (pyannote) sorts the clips by voice and fills the Character
+  column. The model is gated: accept its terms on Hugging Face and paste a token
+  into Settings.
 
 Limit recommended by the game: **6 seconds per clip** in Dub mode.
 
@@ -272,8 +303,12 @@ cvpack/
   specs.py           description of every pack type + dialogue templates
   media.py           ffmpeg: analysis, silences, cutting, loudness, OGV, images
   subs.py            SRT / WebVTT / JSON3 -> usable lines
+  clips.py           merging repeated lines
   ytdl.py            import and subtitles through yt-dlp
   transcribe.py      faster-whisper (optional)
+  separate.py        backing track through demucs (optional)
+  portrait.py        rembg cutout, still from a video (optional)
+  diarize.py         speaker detection through pyannote (optional)
   inifmt.py          the packs' "Godot flavoured" INI format
   project.py         projects on disk
   build.py           building, installing, zip export, validation

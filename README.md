@@ -70,6 +70,12 @@ tourne en local, tes projets restent dans `data/`.
 | ffmpeg / ffprobe | toutes les conversions | **oui** |
 | yt-dlp | import depuis YouTube et compagnie | installe avec les dependances |
 | faster-whisper | transcription automatique | optionnel — `pip install faster-whisper` |
+| demucs | piste d'ambiance sans les voix | optionnel — `pip install demucs` |
+| rembg + OpenCV | detourage des personnages, image tiree d'une video | optionnel — `pip install rembg onnxruntime opencv-python-headless` |
+| pyannote.audio | detection des locuteurs | optionnel — `pip install pyannote.audio` |
+
+Les quatre dernieres ne sont jamais indispensables : sans elles le bouton
+correspondant reste grise, et te dit quoi installer.
 
 Le chemin de ffmpeg se regle dans **Reglages**. Le champ accepte l'executable
 ou le dossier qui le contient ; vide, l'outil prend celui du `PATH`.
@@ -96,9 +102,9 @@ miniature de la video, et **telecharge les sous-titres** s'il y en a — les
 officiels de preference, les automatiques sinon.
 
 > **Si la source a une piste video, le mode Dub s'active tout seul.** Le pack
-> embarquera la video, qui tournera pendant les extraits, comme dans les packs
-> de la communaute. La case du bloc *Mode Dub* le coupe si tu n'en veux pas, et
-> ce choix-la est retenu.
+> embarquera `dub_video.ogv`, que le jeu joue a la fin de la manche avec tes
+> prises par-dessus. La case du bloc *Mode Dub* le coupe si tu n'en veux pas,
+> et ce choix-la est retenu.
 
 ### 2. Decouper
 
@@ -114,7 +120,14 @@ Deux methodes, un bouton chacune :
   quand meme les clips obtenus.
 
 Dans les deux cas, une image est extraite de la video au milieu de chaque clip :
-chaque son arrive avec son image.
+chaque son arrive avec son image. Et deux details qui changent la qualite du
+resultat :
+
+- **une replique trop longue est coupee dans un silence**, jamais au milieu
+  d'un mot : l'outil cherche la plus large respiration du passage ;
+- **en mode Dub, une replique qui revient plusieurs fois devient un seul clip**
+  portant plusieurs `dub_timestamps`. Le format le prevoit, et le jeu doublera
+  la meme prise a chacune de ses apparitions.
 
 ### 3. Ajuster a la souris
 
@@ -173,9 +186,14 @@ Tout est couvert, pas seulement les voix.
 > - **marge transparente sous les pieds** — le personnage flotte, ou disparait.
 >   Les marges vides sont rognees avant la mise a l'echelle.
 >
-> Reste une chose que personne ne peut faire a ta place : **detourer**. Une
-> photo rectangulaire s'affiche en entier, fond compris. Le bouton *Verifier*
-> te le signale.
+> Reste le **detourage** : une photo rectangulaire s'affiche en entier, fond
+> compris. Le bouton *Verifier* te le signale, et le bouton **Detourer**
+> (rembg) s'en charge — sur une photo de juge, on passe de 0 % a ~58 % de
+> transparence, le profil des packs qui s'affichent bien.
+>
+> Le bouton **Depuis une video** va meme chercher l'image directement dans un
+> film : OpenCV retient le passage ou le visage est le plus net, l'outil
+> recadre au format du plateau et detoure dans la foulee.
 
 Le pack **animateur** part d'un modele francais complet : les repliques du
 `config_host.json` d'origine sont traduites, avec plusieurs variantes possibles
@@ -186,14 +204,29 @@ par ligne (le jeu en tire une au hasard). Variables disponibles :
 
 ## 🎥 Le mode Dub
 
-Un pack devient un **pack Dub** des qu'il contient `dub_video.ogv`. Dans le jeu,
-la video tourne pendant que tu imites — c'est ce qui distingue un pack qui a de
-la gueule d'une liste de sons.
+Un pack devient un **pack Dub** des qu'il contient `dub_video.ogv`.
+
+**Quand la video s'affiche-t-elle ?** Pas pendant l'enregistrement : la, le jeu
+montre l'image du clip, packs de la communaute compris. La video arrive **a la
+fin de la manche**, une fois toutes les repliques enregistrees — le jeu la joue
+en entier et pose tes prises dessus, chacune a l'instant de son
+`dub_timestamps`. La scene rejouee avec ta voix : c'est le but du mode Dub. Il
+faut donc lancer la partie en **Dub Mode**, pas en mode normal.
 
 L'outil s'en charge : conversion en OGV/Theora (qualite et hauteur reglables),
-un `.ini` par clip avec son sous-titre et son timestamp sur la timeline video,
-et un `_dub_timestamps.md` recapitulatif. Tu peux aussi nommer les personnages
-et marquer certains clips comme « Dub seul ».
+un `.ini` par clip avec son sous-titre et ses timestamps, et un
+`_dub_timestamps.md` recapitulatif. Tu peux aussi nommer les personnages et
+marquer certains clips comme « Dub seul ».
+
+Deux boutons rendent le mode Dub moins fastidieux, chacun avec sa dependance
+optionnelle :
+
+- **Separer les voix de la musique** (demucs) fabrique `_backing_track` depuis
+  la source : la bande son d'origine sans les voix, qui passe pendant que tu
+  doubles ;
+- **Detecter les locuteurs** (pyannote) repartit les clips entre les voix de la
+  video et remplit la colonne Personnage. Le modele est sous conditions : il
+  faut les accepter sur Hugging Face et coller un jeton dans les Reglages.
 
 Limite conseillee par le jeu : **6 secondes par clip** en mode Dub.
 
@@ -273,8 +306,12 @@ cvpack/
   specs.py           description de chaque type de pack + modeles de dialogue
   media.py           ffmpeg : analyse, silences, decoupe, normalisation, OGV, images
   subs.py            SRT / WebVTT / JSON3 -> repliques exploitables
+  clips.py           fusion des repliques repetees
   ytdl.py            import et sous-titres via yt-dlp
   transcribe.py      faster-whisper (optionnel)
+  separate.py        piste d'ambiance par demucs (optionnel)
+  portrait.py        detourage rembg, image tiree d'une video (optionnel)
+  diarize.py         detection des locuteurs par pyannote (optionnel)
   inifmt.py          format INI « a la Godot » des packs
   project.py         projets sur disque
   build.py           generation, installation, export zip, validation

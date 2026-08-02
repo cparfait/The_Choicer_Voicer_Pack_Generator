@@ -172,9 +172,49 @@ def detect_silences(src: Path, noise_db: float = -32.0,
     return silences
 
 
+def split_points(start: float, end: float, max_len: float,
+                 pauses: list[tuple[float, float]] | None = None,
+                 floor: float = 0.4) -> list[float]:
+    """Ou couper un passage trop long, du silence le plus large vers le moins.
+
+    Couper en parts egales tombe au milieu d'un mot une fois sur deux. Quand
+    on connait les silences de la source, on coupe dedans : le clip commence
+    et finit sur une respiration.
+    """
+    if max_len <= 0 or end - start <= max_len:
+        return []
+    cut = _widest_pause(start, end, pauses or [], floor)
+    if cut is None:
+        # Aucun silence exploitable : parts egales, faute de mieux.
+        pieces = int((end - start) // max_len) + (1 if (end - start) % max_len else 0)
+        step = (end - start) / pieces
+        return [start + i * step for i in range(1, pieces)]
+    return sorted(split_points(start, cut, max_len, pauses, floor)
+                  + [cut]
+                  + split_points(cut, end, max_len, pauses, floor))
+
+
+def _widest_pause(start: float, end: float, pauses: list[tuple[float, float]],
+                  floor: float) -> float | None:
+    """Milieu du plus large silence utilisable dans [start, end]."""
+    best, best_width = None, 0.0
+    for pause_start, pause_end in pauses:
+        left = max(pause_start, start + floor)
+        right = min(pause_end, end - floor)
+        if right - left <= 0:
+            continue
+        width = right - left
+        # A largeur egale, le silence le plus central partage le mieux.
+        score = width - abs((left + right) / 2 - (start + end) / 2) / 100.0
+        if score > best_width:
+            best, best_width = (left + right) / 2, score
+    return best
+
+
 def segments_from_silences(duration: float, silences: list[tuple[float, float]],
                            min_len: float = 0.7, max_len: float = 6.0,
-                           pad: float = 0.08) -> list[dict]:
+                           pad: float = 0.08,
+                           pauses: list[tuple[float, float]] | None = None) -> list[dict]:
     """Transforme les zones de silence en segments parlants exploitables."""
     speech: list[list[float]] = []
     cursor = 0.0
@@ -195,14 +235,10 @@ def segments_from_silences(duration: float, silences: list[tuple[float, float]],
         if length <= max_len:
             segments.append({"start": start, "end": end})
             continue
-        # Segment trop long : on le coupe en morceaux egaux <= max_len.
-        pieces = int(length // max_len) + (1 if length % max_len else 0)
-        step = length / pieces
-        for i in range(pieces):
-            segments.append({
-                "start": round(start + i * step, 3),
-                "end": round(min(end, start + (i + 1) * step), 3),
-            })
+        # Segment trop long : on le coupe dans ses silences internes.
+        edges = [start] + split_points(start, end, max_len, pauses) + [end]
+        for left, right in zip(edges, edges[1:]):
+            segments.append({"start": round(left, 3), "end": round(right, 3)})
     return [{"start": round(s["start"], 3), "end": round(s["end"], 3)} for s in segments]
 
 

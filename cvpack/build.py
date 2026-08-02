@@ -220,6 +220,11 @@ def _build_voice(project: Project, target: Path, warnings: list[str],
         written.append(f"{base}.{fmt}")
 
         image = project.clip_image(clip["id"])
+        # En mode Dub, l'image du clip peut masquer la video : les packs de la
+        # communaute n'en mettent le plus souvent pas. L'option laisse essayer
+        # les deux sans redecouper le projet.
+        if is_dub and not project.data.get("options", {}).get("dub_clip_images", True):
+            image = None
         image_name = ""
         if image:
             destination = target / f"{base}{image.suffix.lower()}"
