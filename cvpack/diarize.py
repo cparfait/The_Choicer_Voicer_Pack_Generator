@@ -4,8 +4,9 @@ En mode Dub, chaque clip peut porter le nom du personnage qui parle. Le faire
 a la main sur cent clips est penible ; pyannote regroupe les passages par voix
 et l'outil n'a plus qu'a proposer une correspondance « Locuteur 1 -> Nom ».
 
-Le modele est sous licence : il faut accepter ses conditions sur Hugging Face
-et coller un jeton d'acces dans les Reglages. Sans jeton, la fonction reste
+Le modele est sous conditions : il faut les accepter sur Hugging Face, sur les
+deux pages pyannote/segmentation-3.0 et pyannote/speaker-diarization-3.1, puis
+coller un jeton d'acces dans les Reglages. Sans jeton, la fonction reste
 indisponible et le champ Personnage se remplit a la main, comme avant.
 """
 
@@ -54,8 +55,9 @@ def _load():
         pipeline = Pipeline.from_pretrained(MODEL, use_auth_token=token)
         if pipeline is None:
             raise RuntimeError(
-                "Le modele n'a pas pu etre charge : verifie que tu as accepte "
-                f"les conditions de {MODEL} avec ce compte."
+                "Le modele n'a pas pu etre charge : les conditions doivent etre "
+                "acceptees avec ce compte sur les deux pages, "
+                f"pyannote/segmentation-3.0 et {MODEL}."
             )
         globals()["_pipeline"] = pipeline
         globals()["_pipeline_token"] = token

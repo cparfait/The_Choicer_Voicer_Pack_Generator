@@ -226,7 +226,12 @@ optionnelle :
   doubles ;
 - **Detecter les locuteurs** (pyannote) repartit les clips entre les voix de la
   video et remplit la colonne Personnage. Le modele est sous conditions : il
-  faut les accepter sur Hugging Face et coller un jeton dans les Reglages.
+  faut les accepter sur **les deux** pages du modele
+  ([segmentation-3.0](https://hf.co/pyannote/segmentation-3.0) et
+  [speaker-diarization-3.1](https://hf.co/pyannote/speaker-diarization-3.1)),
+  puis coller dans les Reglages un jeton *read* cree sur
+  [hf.co/settings/tokens](https://hf.co/settings/tokens). Il reste sur ta
+  machine, dans `data/settings.json`.
 
 Limite conseillee par le jeu : **6 secondes par clip** en mode Dub.
 

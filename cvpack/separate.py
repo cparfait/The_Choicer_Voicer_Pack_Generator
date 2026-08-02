@@ -26,8 +26,8 @@ def available() -> bool:
     try:
         import demucs  # noqa: F401
         return True
-    except ImportError:
-        return False
+    except Exception:  # noqa: BLE001 - une installation a moitie cassee ne doit
+        return False   # pas empecher le reste de l'outil de demarrer
 
 
 def status() -> dict:

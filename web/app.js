@@ -196,14 +196,18 @@ function show(view) {
 }
 
 document.querySelectorAll('nav button').forEach((button) => {
-  button.onclick = () => {
+  button.onclick = async () => {
     const view = button.dataset.view;
+    // Page ouverte pendant un redemarrage du serveur : rien n'a pu etre
+    // charge. On retente, plutot que d'echouer sur une reference vide.
+    if (!state.boot && !await loadBoot()) return;
     renderView(view);
     show(view);
   };
 });
 
 function renderView(view) {
+  if (!state.boot) return undefined;
   if (view === 'home') return renderHome();
   if (view === 'library') return renderLibrary();
   if (view === 'settings') return renderSettings();
@@ -2058,9 +2062,13 @@ function renderSettings() {
       <p class="hint">${state.boot.diarize.available
         ? t('Installe.')
         : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install pyannote.audio</code>'}</p>
-      <p class="hint">Le modele est sous conditions : accepte-les sur
+      <p class="hint">Le modele est sous conditions. Accepte-les sur les deux pages —
+        <a href="https://hf.co/pyannote/segmentation-3.0" target="_blank"
+           rel="noopener">segmentation-3.0</a> et
         <a href="https://hf.co/pyannote/speaker-diarization-3.1" target="_blank"
-           rel="noopener">Hugging Face</a>, puis colle ici un jeton d'acces.</p>
+           rel="noopener">speaker-diarization-3.1</a> — puis colle ici un jeton de type
+        <em>read</em> cree sur
+        <a href="https://hf.co/settings/tokens" target="_blank" rel="noopener">hf.co/settings/tokens</a>.</p>
       <label class="field" style="max-width:520px;margin-top:12px"><span>Jeton Hugging Face</span>
         <input type="password" id="set-hf" value="${escapeAttr(s.hf_token || '')}"
                placeholder="hf_..."></label>
@@ -2191,6 +2199,34 @@ function renderHelp() {
 
 /* ------------------------------------------------------------ demarrage */
 
+/**
+ * Charge la description du serveur. En cas d'echec, propose de reessayer :
+ * le serveur est peut-etre simplement en train de redemarrer, et nettoyer la
+ * page entiere obligerait a la recharger a la main.
+ */
+async function loadBoot() {
+  try {
+    state.boot = await api('/bootstrap');
+    return true;
+  } catch (error) {
+    const host = document.getElementById('view-home');
+    host.innerHTML = `
+      <div class="card">
+        <h2>Le serveur ne repond pas</h2>
+        <p class="hint">${escapeHtml(error.message)}</p>
+        <p class="hint">Il redemarre peut-etre : laisse-lui un instant, puis reessaie.</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="boot-retry">Reessayer</button>
+        </div>
+      </div>`;
+    show('home');
+    host.querySelector('#boot-retry').onclick = async () => {
+      if (await loadBoot()) await renderHome();
+    };
+    return false;
+  }
+}
+
 (async function start() {
   setLang(getLang());
   document.title = t('Createur de packs — The Choicer Voicer');
@@ -2200,13 +2236,7 @@ function renderHelp() {
   watch(document.body);
   translateTree(document.body);
 
-  try {
-    state.boot = await api('/bootstrap');
-  } catch (error) {
-    document.querySelector('main').innerHTML =
-      `<div class="card"><h2>Le serveur ne repond pas</h2><p class="hint">${escapeHtml(error.message)}</p></div>`;
-    return;
-  }
+  if (!await loadBoot()) return;
   if (!state.boot.tools.ffmpeg.ok) {
     toast('ffmpeg est introuvable : les conversions echoueront. Voir Reglages.', 'error');
   }
