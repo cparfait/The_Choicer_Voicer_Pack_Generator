@@ -16,10 +16,19 @@ from pathlib import Path
 
 from . import settings
 
-MODEL = "pyannote/speaker-diarization-3.1"
+# pyannote 4 recommande « community-1 », nettement meilleur au comptage des
+# voix ; « 3.1 » reste le repli, et c'est celui que la plupart des comptes ont
+# deja autorise. Chaque modele demande d'accepter ses conditions a part, donc
+# on essaie dans l'ordre et on garde le premier qui se charge.
+MODELS = [
+    "pyannote/speaker-diarization-community-1",
+    "pyannote/speaker-diarization-3.1",
+]
+MODEL = MODELS[-1]
 
 _pipeline = None
 _pipeline_token: str | None = None
+_pipeline_model: str = ""
 
 
 def _has_pyannote() -> bool:
@@ -38,6 +47,15 @@ def status() -> dict:
     }
 
 
+def _open(model: str, token: str):
+    """Charge un modele. pyannote 4 attend « token », la 3 « use_auth_token »."""
+    from pyannote.audio import Pipeline
+    try:
+        return Pipeline.from_pretrained(model, token=token)
+    except TypeError:
+        return Pipeline.from_pretrained(model, use_auth_token=token)
+
+
 def _load():
     global _pipeline, _pipeline_token
     if not _has_pyannote():
@@ -51,35 +69,58 @@ def _load():
             "diarisation en demande un, apres acceptation de ses conditions."
         )
     if _pipeline is None or _pipeline_token != token:
-        from pyannote.audio import Pipeline
-        # pyannote 4 attend « token », la 3 attendait « use_auth_token » : on
-        # essaie le nom recent d'abord et on retombe sur l'ancien.
-        try:
-            pipeline = Pipeline.from_pretrained(MODEL, token=token)
-        except TypeError:
-            pipeline = Pipeline.from_pretrained(MODEL, use_auth_token=token)
+        pipeline, model, refus = None, "", []
+        for candidate in MODELS:
+            try:
+                pipeline = _open(candidate, token)
+            except Exception as exc:  # noqa: BLE001 - modele refuse, absent, hors ligne
+                refus.append(f"{candidate} ({str(exc).splitlines()[0][:120]})")
+                continue
+            if pipeline is not None:
+                model = candidate
+                break
+            refus.append(f"{candidate} (conditions non acceptees avec ce compte)")
         if pipeline is None:
             raise RuntimeError(
-                "Le modele n'a pas pu etre charge : les conditions doivent etre "
-                "acceptees avec ce compte sur les deux pages, "
-                f"pyannote/segmentation-3.0 et {MODEL}."
+                "Aucun modele de diarisation n'a pu etre charge. Accepte leurs "
+                "conditions sur huggingface.co avec le compte du jeton, puis "
+                "reessaie. Detail : " + " ; ".join(refus)
             )
         globals()["_pipeline"] = pipeline
         globals()["_pipeline_token"] = token
+        globals()["_pipeline_model"] = model
     return _pipeline
+
+
+def _annotation(result):
+    """La sortie de pyannote 4 porte plusieurs pistes ; la 3 en renvoyait une.
+
+    On prefere la version « exclusive », sans chevauchement : pour attribuer un
+    personnage a un clip, deux voix superposees ne rendent pas service.
+    """
+    for name in ("exclusive_speaker_diarization", "speaker_diarization"):
+        track = getattr(result, name, None)
+        if track is not None and hasattr(track, "itertracks"):
+            return track
+    return result
 
 
 def speakers(audio: Path, count: int | None = None) -> list[dict]:
     """Passages parlants, avec l'etiquette de voix : [{start, end, label}]."""
     pipeline = _load()
     options = {"num_speakers": count} if count else {}
-    result = pipeline(str(audio), **options)
+    result = _annotation(pipeline(str(audio), **options))
     turns = [
         {"start": round(float(turn.start), 3), "end": round(float(turn.end), 3),
          "label": str(label)}
         for turn, _, label in result.itertracks(yield_label=True)
     ]
     return sorted(turns, key=lambda t: t["start"])
+
+
+def loaded_model() -> str:
+    """Modele reellement charge — celui des MODELS que le compte a autorise."""
+    return _pipeline_model
 
 
 def label_for_range(turns: list[dict], start: float, end: float) -> str | None:

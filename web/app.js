@@ -1240,6 +1240,13 @@ function renderVoiceEditor() {
             ? `demucs ${escapeHtml(state.boot.demucs.model)}`
             : 'demucs non installe — voir Reglages'}</span>
         </div>
+        <div class="row" style="margin:10px 0">
+          <select id="dub-rename-from" style="flex:0 0 200px"></select>
+          <span class="hint">&rarr;</span>
+          <input type="text" id="dub-rename-to" placeholder="Tonton" style="flex:0 0 200px">
+          <button class="btn ghost" id="dub-rename">Renommer partout</button>
+          <span class="hint">Remplace le nom dans tous les clips concernes.</span>
+        </div>
         <div class="progress" id="dub-progress" style="display:none"><div></div></div>
         <p class="hint" id="dub-message"></p>
 
@@ -1876,6 +1883,35 @@ function wireVoiceDub(host) {
     }
   };
 
+  // Renommage en bloc : la diarisation ne sort que « Locuteur 1 », « 2 »...
+  const renameFrom = host.querySelector('#dub-rename-from');
+  const renameTo = host.querySelector('#dub-rename-to');
+  const paintCharacters = () => {
+    const noms = project.dub?.characters || [];
+    renameFrom.innerHTML = noms.length
+      ? noms.map((n) => `<option>${escapeHtml(n)}</option>`).join('')
+      : `<option value="">${escapeHtml(t('Aucun personnage'))}</option>`;
+    host.querySelector('#dub-rename').disabled = !noms.length;
+  };
+  paintCharacters();
+  host.querySelector('#dub-rename').onclick = async () => {
+    const before = renameFrom.value;
+    const after = renameTo.value.trim();
+    if (!before || !after) return toast(t('Choisis un personnage et son nouveau nom.'), 'error');
+    try {
+      await saveNow();
+      const result = await post(`/projects/${project.id}/characters/rename`,
+                                { from: before, to: after });
+      project.clips = result.clips;
+      project.dub.characters = result.characters;
+      renameTo.value = '';
+      paintCharacters();
+      host.querySelector('#dub-characters').value = result.characters.join(', ');
+      renderClipTable();
+      toast(t('%s clips renommes.', result.renamed), 'success');
+    } catch (error) { fail(error); }
+  };
+
   const diarizeButton = host.querySelector('#dub-diarize');
   diarizeButton.onclick = () => run(diarizeButton, t('Detection des locuteurs'),
     async () => {
@@ -1887,6 +1923,8 @@ function wireVoiceDub(host) {
     (result) => {
       project.clips = result.clips;
       project.dub.characters = [...new Set([...(project.dub.characters || []), ...result.names])];
+      host.querySelector('#dub-characters').value = project.dub.characters.join(', ');
+      paintCharacters();
       renderClipTable();
       message.textContent = t('%s voix trouvees, %s clips attribues.',
                               result.speakers, result.filled);

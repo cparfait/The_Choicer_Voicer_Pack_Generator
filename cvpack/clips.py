@@ -22,6 +22,28 @@ def _key(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", folded.lower()).strip()
 
 
+def rename_character(clips: list[dict], before: str, after: str) -> int:
+    """Renomme un personnage dans tous les clips. Retourne le nombre touche.
+
+    La diarisation sort « Locuteur 1 », « Locuteur 2 » : sans ce renommage en
+    bloc, mettre les vrais prenoms demanderait de reprendre chaque clip.
+    """
+    before, after = (before or "").strip(), (after or "").strip()
+    if not before or before == after:
+        return 0
+    touched = 0
+    for clip in clips:
+        names = clip.get("characters") or []
+        if before not in names:
+            continue
+        if after:
+            clip["characters"] = [after if n == before else n for n in names]
+        else:
+            clip["characters"] = [n for n in names if n != before]
+        touched += 1
+    return touched
+
+
 def merge_repeated(clips: list[dict], similarity: float = SIMILARITY) -> int:
     """Regroupe les repliques repetees en un clip a plusieurs timestamps.
 

@@ -225,7 +225,11 @@ optionnelle :
   la source : la bande son d'origine sans les voix, qui passe pendant que tu
   doubles ;
 - **Detecter les locuteurs** (pyannote) repartit les clips entre les voix de la
-  video et remplit la colonne Personnage. Le modele est sous conditions : il
+  video et remplit la colonne Personnage — utile parce que le jeu laisse le
+  joueur *choisir les personnages qu'il veut doubler*, les autres gardant leur
+  voix d'origine. Les voix sortent nommees « Locuteur 1 », « Locuteur 2 » : le
+  bouton *Renommer partout* leur donne leur vrai nom dans tous les clips d'un
+  coup. Le modele est sous conditions : il
   faut les accepter sur **les deux** pages du modele
   ([segmentation-3.0](https://hf.co/pyannote/segmentation-3.0) et
   [speaker-diarization-3.1](https://hf.co/pyannote/speaker-diarization-3.1)),

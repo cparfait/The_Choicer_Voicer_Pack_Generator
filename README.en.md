@@ -221,7 +221,10 @@ Two buttons make Dub mode less tedious, each with its optional dependency:
 - **Split voices from music** (demucs) builds `_backing_track` from the source:
   the original soundtrack without the voices, playing while you dub;
 - **Detect speakers** (pyannote) sorts the clips by voice and fills the Character
-  column. The model is gated: accept its terms on **both** model pages
+  column — worth it because the game lets the player *choose which characters to
+  dub*, the others keeping their original voice. Voices come out as "Locuteur 1",
+  "Locuteur 2": the *Rename everywhere* button gives them their real name across
+  every clip at once. The model is gated: accept its terms on **both** model pages
   ([segmentation-3.0](https://hf.co/pyannote/segmentation-3.0) and
   [speaker-diarization-3.1](https://hf.co/pyannote/speaker-diarization-3.1)),
   then paste into Settings a *read* token created at

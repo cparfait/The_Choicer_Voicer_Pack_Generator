@@ -366,6 +366,14 @@ const DICT = {
   'Jeton Hugging Face manquant — voir Reglages': ['Hugging Face token missing — see Settings', 'Falta el token de Hugging Face — ver Ajustes'],
   'Pret': ['Ready', 'Listo'],
   '%s voix trouvees, %s clips attribues.': ['%s voices found, %s clips assigned.', '%s voces encontradas, %s clips asignados.'],
+  'Renommer partout': ['Rename everywhere', 'Renombrar en todas partes'],
+  'Remplace le nom dans tous les clips concernes.':
+    ['Replaces the name in every clip that uses it.',
+      'Reemplaza el nombre en todos los clips afectados.'],
+  'Aucun personnage': ['No character', 'Ningun personaje'],
+  'Choisis un personnage et son nouveau nom.':
+    ['Pick a character and its new name.', 'Elige un personaje y su nuevo nombre.'],
+  '%s clips renommes.': ['%s clips renamed.', '%s clips renombrados.'],
   'Piste d\'ambiance': ['Backing track', 'Pista de ambiente'],
   'La bande son sans les voix, jouee pendant que tu doubles. Demucs la fabrique depuis la source.':
     ['The soundtrack without the voices, played while you dub. Demucs makes it from the source.',

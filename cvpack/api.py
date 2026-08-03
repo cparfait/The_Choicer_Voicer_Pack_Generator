@@ -867,7 +867,28 @@ def _diarize(job, project_id: str, params: dict) -> dict:
     found.save()
     job.progress(1.0, f"{len(names)} voix")
     return {"clips": found.data.get("clips", []), "speakers": len(names),
-            "filled": filled, "names": list(names.values())}
+            "filled": filled, "names": list(names.values()),
+            "model": diarize.loaded_model()}
+
+
+@router.post("/projects/{project_id}/characters/rename")
+async def rename_character(project_id: str, request: Request):
+    """Renomme un personnage partout : dans les clips et dans la liste du pack."""
+    found = _project(project_id)
+    payload = await request.json()
+    before = (payload.get("from") or "").strip()
+    after = (payload.get("to") or "").strip()
+    if not before:
+        raise HTTPException(400, "Nom a remplacer manquant")
+    touched = cliptools.rename_character(found.data.get("clips", []), before, after)
+
+    dub = found.data.setdefault("dub", {})
+    known = [n for n in (dub.get("characters") or []) if n != before]
+    if after and after not in known:
+        known.append(after)
+    dub["characters"] = known
+    found.save()
+    return {"clips": found.data.get("clips", []), "characters": known, "renamed": touched}
 
 
 @router.post("/projects/{project_id}/diarize")
