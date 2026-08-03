@@ -255,6 +255,8 @@ const DICT = {
   'Remplir les sous-titres des clips': ['Fill in the clip subtitles', 'Rellenar los subtitulos de los clips'],
   'Ecraser les sous-titres deja saisis': ['Overwrite subtitles already entered', 'Sobrescribir los subtitulos ya escritos'],
   'Importer un .srt / .vtt': ['Import a .srt / .vtt', 'Importar un .srt / .vtt'],
+  'Exporter les clips en .srt': ['Export the clips as .srt', 'Exportar los clips en .srt'],
+  'Aucun sous-titre a exporter.': ['No subtitle to export.', 'No hay subtitulos que exportar.'],
   'Sous-titres': ['Subtitles', 'Subtitulos'],
   'sous-titre': ['subtitle', 'subtitulo'],
   '%s repliques — source : %s': ['%s lines — source: %s', '%s replicas — fuente: %s'],

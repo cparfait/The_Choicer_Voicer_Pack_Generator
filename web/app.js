@@ -1107,6 +1107,7 @@ function renderVoiceEditor() {
           <span class="hint">Ecraser les sous-titres deja saisis</span></label>
         <div class="spacer"></div>
         <button class="btn ghost" id="tx-import">Importer un .srt / .vtt</button>
+        <button class="btn ghost" id="tx-export">Exporter les clips en .srt</button>
         <button class="btn ghost" id="tx-view">Voir</button>
       </div>
       <div class="progress" id="tx-progress2" style="display:none"><div></div></div>
@@ -1462,6 +1463,13 @@ async function wireVoiceTranscript(host) {
     const dialog = modal('Sous-titres', '<pre class="code"></pre>', { wide: true });
     dialog.body.querySelector('pre').textContent = (transcript.cues || [])
       .map((c) => `${formatTime(c.start)} → ${formatTime(c.end)}  ${c.text}`).join('\n');
+  };
+
+  host.querySelector('#tx-export').onclick = async () => {
+    // Les sous-titres exportes sont ceux des clips, pas ceux de la source :
+    // c'est le travail fait dans le tableau que l'on recupere.
+    await saveNow();
+    window.location.href = `/api/projects/${project.id}/subtitles.srt`;
   };
 
   host.querySelector('#tx-import').onclick = () => {

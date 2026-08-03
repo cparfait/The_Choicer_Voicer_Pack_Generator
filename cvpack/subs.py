@@ -220,6 +220,27 @@ def segments_from_cues(cues: list[dict], min_len: float = 0.7, max_len: float = 
              "text": s["text"]} for s in segments]
 
 
+def _stamp(seconds: float) -> str:
+    millis = int(round(max(0.0, seconds) * 1000))
+    hours, millis = divmod(millis, 3_600_000)
+    minutes, millis = divmod(millis, 60_000)
+    secondes, millis = divmod(millis, 1000)
+    return f"{hours:02d}:{minutes:02d}:{secondes:02d},{millis:03d}"
+
+
+def to_srt(cues: list[dict]) -> str:
+    """Repliques {start, end, text} vers un fichier SRT."""
+    blocks = []
+    for cue in sorted(cues, key=lambda c: float(c["start"])):
+        text = " ".join((cue.get("text") or "").split())
+        if not text:
+            continue
+        blocks.append(f"{len(blocks) + 1}\n"
+                      f"{_stamp(float(cue['start']))} --> {_stamp(float(cue['end']))}\n"
+                      f"{text}\n")
+    return "\n".join(blocks)
+
+
 def text_for_range(cues: list[dict], start: float, end: float) -> str:
     """Texte des cues qui recouvrent l'intervalle demande."""
     parts = []

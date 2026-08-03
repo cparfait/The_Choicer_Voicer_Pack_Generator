@@ -8,6 +8,7 @@ import os
 import re
 import string
 import subprocess
+import urllib.parse
 import sys
 import uuid
 from pathlib import Path
@@ -1366,6 +1367,26 @@ def download_zip(project_id: str):
     except builder.BuildError as exc:
         raise HTTPException(400, str(exc))
     return FileResponse(archive, filename=archive.name, media_type="application/zip")
+
+
+@router.get("/projects/{project_id}/subtitles.srt")
+def export_subtitles(project_id: str):
+    """Sous-titres des clips actifs, sur la timeline de la source."""
+    found = _project(project_id)
+    cues = [{"start": c["start"], "end": c["end"], "text": c.get("caption", "")}
+            for c in found.data.get("clips", []) if c.get("enabled", True)]
+    content = subs.to_srt(cues)
+    if not content.strip():
+        raise HTTPException(400, "Aucun sous-titre a exporter.")
+    stem = projects.safe_name(found.data.get("name") or "pack")
+    # Un nom accentue casse les vieux clients : on donne les deux formes.
+    ascii_name = stem.encode("ascii", "ignore").decode() or "pack"
+    quoted = urllib.parse.quote(f"{stem}.srt")
+    return Response(
+        content, media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition":
+                 f'attachment; filename="{ascii_name}.srt"; filename*=UTF-8\'\'{quoted}'},
+    )
 
 
 @router.get("/projects/{project_id}/preview-config")

@@ -150,6 +150,9 @@ In decreasing order of laziness:
 3. **A `.srt` / `.vtt` file** you import;
 4. **Your keyboard**, in the clip table.
 
+The other way round, **Export the clips as .srt** gives back the work done in
+the table, timed on the source.
+
 ### 5. Build, install, play
 
 **Build** writes the pack into the working folder. **Check** lists what is wrong
@@ -360,3 +363,5 @@ This tool downloads what you tell it to download. **Only use content you have th
 right to reuse**, and credit the authors in the pack — there is a field for it.
 
 Unofficial project, not affiliated with YeahMaybe.
+
+Licensed under [GPL-3.0](LICENSE).

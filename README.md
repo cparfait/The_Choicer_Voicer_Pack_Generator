@@ -152,6 +152,9 @@ Par ordre de paresse decroissante :
 3. **Un fichier `.srt` / `.vtt`** que tu importes ;
 4. **Au clavier**, dans le tableau des clips.
 
+Dans l'autre sens, **Exporter les clips en .srt** ressort le travail fait dans
+le tableau, cale sur la timeline de la source.
+
 ### 5. Generer, installer, jouer
 
 **Generer** ecrit le pack dans le dossier de travail. **Verifier** liste ce qui
@@ -366,3 +369,5 @@ contenus que tu as le droit de reutiliser**, et cite les auteurs dans le pack â€
 le champ est prevu pour ca.
 
 Projet non officiel, sans lien avec YeahMaybe.
+
+Sous licence [GPL-3.0](LICENSE).
