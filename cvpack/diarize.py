@@ -52,7 +52,12 @@ def _load():
         )
     if _pipeline is None or _pipeline_token != token:
         from pyannote.audio import Pipeline
-        pipeline = Pipeline.from_pretrained(MODEL, use_auth_token=token)
+        # pyannote 4 attend « token », la 3 attendait « use_auth_token » : on
+        # essaie le nom recent d'abord et on retombe sur l'ancien.
+        try:
+            pipeline = Pipeline.from_pretrained(MODEL, token=token)
+        except TypeError:
+            pipeline = Pipeline.from_pretrained(MODEL, use_auth_token=token)
         if pipeline is None:
             raise RuntimeError(
                 "Le modele n'a pas pu etre charge : les conditions doivent etre "
