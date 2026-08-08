@@ -23,7 +23,13 @@
   </header>
 
   <main>
-    <section id="view-home" class="view active"></section>
+    <section id="view-home" class="view active">
+      <!-- Visible avant meme que le script ne tourne : la page n'est jamais vide. -->
+      <div class="card loading" id="boot-wait">
+        <span class="spinner"></span>
+        <span>Demarrage de l'outil...</span>
+      </div>
+    </section>
     <section id="view-editor" class="view"></section>
     <section id="view-library" class="view"></section>
     <section id="view-settings" class="view"></section>

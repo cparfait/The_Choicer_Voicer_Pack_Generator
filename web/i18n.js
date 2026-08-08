@@ -62,6 +62,7 @@ const DICT = {
   'Enregistrer': ['Save', 'Guardar'],
   'Rafraichir': ['Refresh', 'Actualizar'],
   'Chargement...': ['Loading...', 'Cargando...'],
+  'Demarrage de l\'outil...': ['Starting up...', 'Iniciando...'],
   'Aucun fichier': ['No file', 'Sin archivo'],
   'Le serveur ne repond pas': ['The server is not responding', 'El servidor no responde'],
   'Il redemarre peut-etre : laisse-lui un instant, puis reessaie.':
@@ -404,6 +405,9 @@ const DICT = {
     ['This .exe build does not carry the AI features: use the Python version of the tool for those.',
       'Esta version .exe no incluye las funciones de IA: usa la version Python de la herramienta para tenerlas.'],
   'Fonctions IA : Python exterieur': ['AI features: external Python', 'Funciones de IA: Python externo'],
+  'Transcription, piste d\'ambiance, locuteurs et detourage reposent sur des bibliotheques de plus d\'un giga.':
+    ['Transcription, backing track, speakers and cutting out rely on libraries weighing over a gigabyte.',
+      'Transcripcion, pista de ambiente, locutores y recorte dependen de bibliotecas de mas de un giga.'],
   'La version .exe ne les embarque pas : indique ici un Python qui les a, et l\'outil lui confiera le travail.':
     ['The .exe build does not carry them: point here to a Python that has them, and the tool will hand it the work.',
       'La version .exe no las incluye: indica aqui un Python que las tenga y la herramienta le pasara el trabajo.'],

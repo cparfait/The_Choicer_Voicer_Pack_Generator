@@ -278,3 +278,20 @@ details.host-section .body { padding: 12px; }
 .lang > ul li:hover { background: var(--bg-3); color: var(--fg); }
 .lang > ul li.on { color: var(--fg); }
 .lang > ul li.on::after { content: "✓"; margin-left: auto; color: var(--accent); }
+
+/* ------------------------------------------------------------ chargement */
+
+.card.loading {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--fg-dim); font-size: 13.5px;
+}
+
+.spinner {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Etat inconnu tant que les bibliotheques lourdes ne sont pas interrogees. */
+.issue.pending, .hint.pending { opacity: .55; }

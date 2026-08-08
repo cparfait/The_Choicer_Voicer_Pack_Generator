@@ -107,35 +107,70 @@ async def _store_upload(upload: UploadFile, destination: Path) -> None:
 # Demarrage / reglages
 # --------------------------------------------------------------------------
 
+# Savoir si une bibliotheque d'IA est la demande de l'importer, et importer
+# torch prend plusieurs secondes. Repondre tout de suite avec des inconnues,
+# puis les remplir sur demande, evite de faire attendre l'interface.
+_INCONNU = {
+    "tools": {name: {"path": "", "ok": None, "version": ""} for name in ("ffmpeg", "ffprobe")},
+    "whisper": {"available": False, "model": "", "device": "", "compute_type": "", "loaded": False},
+    "demucs": {"available": False, "version": "", "model": ""},
+    "portrait": {"cutout": False, "face": False, "local": {"cutout": False, "face": False}},
+    "diarize": {"available": False, "token": False, "model": ""},
+    "helper": {"python": "", "configured": False, "whisper": False, "demucs": False,
+               "diarize": False, "cutout": False, "face": False, "versions": {}},
+}
+
+_outils: dict | None = None
+
+
+def _tools_status() -> dict:
+    """Etat des outils externes, calcule une fois puis garde."""
+    global _outils
+    if _outils is None:
+        _outils = {
+            "tools": media.check_tools(),
+            "whisper": transcribe.status(),
+            "demucs": separate.status(),
+            "portrait": portrait.status(),
+            "diarize": diarize.status(),
+            "helper": helper.status(),
+        }
+    return _outils
+
+
 @router.get("/bootstrap")
 def bootstrap():
+    """Le strict necessaire pour afficher l'interface, sans attendre."""
     return {
         "settings": settings.load(),
         "specs": public_specs(),
         "game": settings.game_dir_status(),
-        "tools": media.check_tools(),
-        "whisper": transcribe.status(),
         "ytdl": ytdl.status(),
-        "demucs": separate.status(),
-        "portrait": portrait.status(),
-        "diarize": diarize.status(),
-        "helper": helper.status(),
         "platform": sys.platform,
         # Version .exe : conseiller « pip install » n'aurait aucun sens, il n'y
         # a pas d'environnement Python sous la main.
         "frozen": settings.FROZEN,
+        "pending": True,
+        **_INCONNU,
     }
+
+
+@router.get("/tools")
+def tools_status():
+    """Ce qui demande d'importer des bibliotheques lourdes."""
+    return {**_tools_status(), "pending": False}
 
 
 @router.post("/settings")
 async def update_settings(request: Request):
     patch = await request.json()
-    # Le chemin du Python exterieur a pu changer : la detection est a refaire.
+    # Le chemin du Python exterieur a pu changer : la detection est a refaire,
+    # et l'etat des outils avec elle.
     helper.forget()
-    return {"settings": settings.save(patch), "game": settings.game_dir_status(),
-            "tools": media.check_tools(), "whisper": transcribe.status(),
-            "demucs": separate.status(), "portrait": portrait.status(),
-            "diarize": diarize.status(), "helper": helper.status()}
+    globals()["_outils"] = None
+    enregistres = settings.save(patch)
+    return {"settings": enregistres, "game": settings.game_dir_status(),
+            **_tools_status()}
 
 
 @router.post("/gamedata/ensure")

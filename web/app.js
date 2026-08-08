@@ -2073,8 +2073,8 @@ function renderSettings() {
 
     <div class="card">
       <h2>Fonctions IA : Python exterieur</h2>
-      <p class="hint">Transcription, piste d'ambiance, locuteurs et detourage reposent sur
-        des bibliotheques de plus d'un giga. ${state.boot.frozen
+      <p class="hint">${t('Transcription, piste d\'ambiance, locuteurs et detourage '
+          + 'reposent sur des bibliotheques de plus d\'un giga.')} ${state.boot.frozen
           ? t('La version .exe ne les embarque pas : indique ici un Python qui les a, '
               + 'et l\'outil lui confiera le travail.')
           : t('Elles sont utilisees directement si elles sont installees ici ; sinon '
@@ -2304,6 +2304,27 @@ async function loadBoot() {
   }
 }
 
+/**
+ * Complete l'etat avec ce qui exige d'importer des bibliotheques lourdes.
+ *
+ * Savoir si pyannote ou rembg sont installes prend une dizaine de secondes :
+ * pas question de retenir l'interface pour ca. On affiche d'abord, on apprend
+ * ensuite, et on rafraichit la vue si elle montrait ces informations.
+ */
+async function loadTools() {
+  let outils;
+  try {
+    outils = await api('/tools');
+  } catch { return; }
+  Object.assign(state.boot, outils);
+  if (state.boot.tools.ffmpeg.ok === false) {
+    toast('ffmpeg est introuvable : les conversions echoueront. Voir Reglages.', 'error');
+  }
+  const vue = document.querySelector('.view.active')?.id.replace('view-', '');
+  if (vue === 'settings') renderSettings();
+  else if (vue === 'editor' && state.project?.type === 'voice') renderVoiceEditor();
+}
+
 (async function start() {
   setLang(getLang());
   document.title = t('Createur de packs — The Choicer Voicer');
@@ -2314,8 +2335,6 @@ async function loadBoot() {
   translateTree(document.body);
 
   if (!await loadBoot()) return;
-  if (!state.boot.tools.ffmpeg.ok) {
-    toast('ffmpeg est introuvable : les conversions echoueront. Voir Reglages.', 'error');
-  }
   await renderHome();
+  loadTools();
 })();
