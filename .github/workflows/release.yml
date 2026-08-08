@@ -56,10 +56,15 @@ jobs:
           $p = Start-Process $exe -ArgumentList "--port","8799","--no-browser" -PassThru
           Start-Sleep -Seconds 20
           try {
-            $r = Invoke-RestMethod "http://127.0.0.1:8799/api/bootstrap" -TimeoutSec 30
-            if (-not $r.tools.ffmpeg.ok) { throw "ffmpeg embarque non fonctionnel" }
-            if (-not $r.frozen) { throw "l'executable ne se reconnait pas comme tel" }
-            "ffmpeg : $($r.tools.ffmpeg.version)"
+            $boot = Invoke-RestMethod "http://127.0.0.1:8799/api/bootstrap" -TimeoutSec 30
+            if (-not $boot.frozen) { throw "l'executable ne se reconnait pas comme tel" }
+            if ($boot.specs.PSObject.Properties.Count -lt 7) { throw "types de packs manquants" }
+            # L'etat des outils externes n'est plus dans /api/bootstrap, qui
+            # repond tout de suite : il se demande a /api/tools.
+            $outils = Invoke-RestMethod "http://127.0.0.1:8799/api/tools" -TimeoutSec 120
+            if (-not $outils.tools.ffmpeg.ok) { throw "ffmpeg embarque non fonctionnel" }
+            if (-not $outils.tools.ffprobe.ok) { throw "ffprobe embarque non fonctionnel" }
+            "ffmpeg : $($outils.tools.ffmpeg.version)"
           } finally {
             Stop-Process -Id $p.Id -Force
           }
