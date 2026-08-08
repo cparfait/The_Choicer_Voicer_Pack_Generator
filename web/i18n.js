@@ -400,6 +400,20 @@ const DICT = {
   'et': ['and', 'y'],
   '— puis colle ici un jeton de type': ['— then paste here a token of type', '— y pega aqui un token de tipo'],
   'cree sur': ['created at', 'creado en'],
+  'Cette version .exe n\'embarque pas les fonctions IA : prends la version Python de l\'outil pour en profiter.':
+    ['This .exe build does not carry the AI features: use the Python version of the tool for those.',
+      'Esta version .exe no incluye las funciones de IA: usa la version Python de la herramienta para tenerlas.'],
+  'Fonctions IA : Python exterieur': ['AI features: external Python', 'Funciones de IA: Python externo'],
+  'La version .exe ne les embarque pas : indique ici un Python qui les a, et l\'outil lui confiera le travail.':
+    ['The .exe build does not carry them: point here to a Python that has them, and the tool will hand it the work.',
+      'La version .exe no las incluye: indica aqui un Python que las tenga y la herramienta le pasara el trabajo.'],
+  'Elles sont utilisees directement si elles sont installees ici ; sinon l\'outil peut les demander a un autre Python.':
+    ['They are used directly when installed here; otherwise the tool can ask another Python for them.',
+      'Se usan directamente si estan instaladas aqui; si no, la herramienta puede pedirselas a otro Python.'],
+  'Chemin du Python (vide = detection automatique)':
+    ['Python path (empty = auto-detect)', 'Ruta de Python (vacio = deteccion automatica)'],
+  'Trouve : %s': ['Found: %s', 'Encontrado: %s'],
+  'Aucun Python capable trouve.': ['No capable Python found.', 'No se encontro ningun Python capaz.'],
   'Jeton Hugging Face': ['Hugging Face token', 'Token de Hugging Face'],
   '%s repliques repetees fusionnees.': ['%s repeated lines merged.', '%s replicas repetidas fusionadas.'],
   '%s voix': ['%s voices', '%s voces'],

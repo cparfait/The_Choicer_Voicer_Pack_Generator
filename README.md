@@ -44,7 +44,25 @@ Cet outil fait tout ca. Toi, tu choisis la video et tu ajustes les bords.
 
 ---
 
-## 🚀 Demarrage
+## ⬇️ Telecharger
+
+**[Derniere version pour Windows](https://github.com/cparfait/The_Choicer_Voicer_Pack_Generator/releases/latest)**
+
+Decompresse le dossier ou tu veux, lance `ChoicerVoicerPackMaker.exe`. Il n'y a
+rien a installer : ffmpeg voyage avec l'outil, et tes projets se rangent dans
+`data/`, a cote de l'executable — donc faciles a sauvegarder ou a deplacer.
+
+Windows peut afficher un avertissement SmartScreen, l'executable n'etant pas
+signe : *Informations complementaires* puis *Executer quand meme*.
+
+Les quatre fonctions qui reposent sur PyTorch — transcription, piste
+d'ambiance, detection des locuteurs, detourage — ne sont pas dans l'archive :
+plus d'un giga a elles seules. L'outil sait les emprunter a un Python qui les
+possede, voir *Fonctions IA* plus bas.
+
+---
+
+## 🚀 Demarrage (depuis les sources)
 
 ```bash
 run.bat
@@ -79,6 +97,20 @@ correspondant reste grise, et te dit quoi installer.
 
 Le chemin de ffmpeg se regle dans **Reglages**. Le champ accepte l'executable
 ou le dossier qui le contient ; vide, l'outil prend celui du `PATH`.
+
+### 🤖 Fonctions IA
+
+Elles s'utilisent de deux facons :
+
+- **version Python** — `pip install faster-whisper demucs pyannote.audio rembg
+  onnxruntime opencv-python-headless`, et tout devient actif sur place ;
+- **version .exe** — l'archive ne les contient pas, mais l'outil peut les
+  emprunter : indique dans **Reglages → Fonctions IA** un Python qui les a, et
+  il lui confiera le travail dans un sous-processus. La decoupe des extraits
+  reste faite par le ffmpeg embarque, seul le modele tourne a l'exterieur.
+
+Aucune n'est indispensable : sans elles, le bouton correspondant reste grise et
+dit quoi installer.
 
 ### 🌍 Trois langues
 

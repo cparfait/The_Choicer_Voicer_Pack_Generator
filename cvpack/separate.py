@@ -50,14 +50,21 @@ def backing_track(source: Path, destination: Path, progress_cb=None) -> Path:
     Demucs travaille dans un dossier temporaire, on ne garde que la piste
     « no_vocals » qu'on reencode au format du pack.
     """
+    python = sys.executable
     if not available():
-        raise RuntimeError(
-            "demucs n'est pas installe. Lance : pip install demucs"
-        )
+        # Version .exe : demucs vit chez un interpreteur exterieur. Il tournait
+        # deja en sous-processus, il suffit de changer de python.
+        from . import helper
+        python = helper.interpreter() or ""
+        if not python or not helper.status().get("demucs"):
+            raise RuntimeError(
+                "demucs n'est pas disponible. Installe-le (pip install demucs) "
+                "ou indique dans les Reglages un Python qui l'a."
+            )
     source = Path(source)
     with tempfile.TemporaryDirectory(prefix="cvpack-demucs-") as tmp:
         out = Path(tmp)
-        command = [sys.executable, "-m", "demucs", "--two-stems=vocals",
+        command = [python, "-m", "demucs", "--two-stems=vocals",
                    "-n", MODEL, "-o", str(out), str(source)]
         ffmpeg = Path(settings.binary("ffmpeg"))
         env = None

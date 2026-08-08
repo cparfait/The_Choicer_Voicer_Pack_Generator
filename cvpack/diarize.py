@@ -105,8 +105,24 @@ def _annotation(result):
     return result
 
 
-def speakers(audio: Path, count: int | None = None) -> list[dict]:
-    """Passages parlants, avec l'etiquette de voix : [{start, end, label}]."""
+def speakers(audio: Path, count: int | None = None,
+             progress_cb=None) -> list[dict]:
+    """Passages parlants, avec l'etiquette de voix : [{start, end, label}].
+
+    Sans pyannote sur place — cas de la version .exe — la tache part chez un
+    Python exterieur, qui renvoie les memes intervalles.
+    """
+    if not _has_pyannote():
+        from . import helper
+        resultat = helper.run("diarize", {
+            "source": str(audio),
+            "models": MODELS,
+            "token": (settings.get("hf_token") or "").strip(),
+            "speakers": count,
+        }, progress_cb=progress_cb)
+        globals()["_pipeline_model"] = "(Python exterieur)"
+        return resultat.get("turns") or []
+
     pipeline = _load()
     options = {"num_speakers": count} if count else {}
     result = _annotation(pipeline(str(audio), **options))

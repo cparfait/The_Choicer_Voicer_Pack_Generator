@@ -1,0 +1,108 @@
+# Fabrique l'executable Windows et le publie dans une release GitHub.
+#
+# Declenche par un tag de version :
+#     git tag v1.0.0 && git push origin v1.0.0
+#
+# Le .zip produit contient l'outil, son interface et ffmpeg : rien a installer
+# pour celui qui le telecharge. Les fonctions IA (torch) restent dehors — elles
+# pesent plus d'un giga et s'obtiennent en indiquant un Python dans Reglages.
+
+name: Executable Windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:        # bouton « Run workflow », pour essayer sans publier
+
+permissions:
+  contents: write           # necessaire pour creer la release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Dependances
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi "uvicorn[standard]" python-multipart yt-dlp pyinstaller
+
+      # Variante « lgpl-shared » : elle a libtheora, libvorbis et libmp3lame —
+      # tout ce dont l'outil se sert — pour trois fois moins lourd que la
+      # variante gpl statique.
+      - name: ffmpeg
+        run: |
+          curl -L -o ffmpeg.zip https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl-shared.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
+          $bin = (Get-ChildItem ffmpeg-dl -Recurse -Filter ffmpeg.exe | Select-Object -First 1).DirectoryName
+          "FFMPEG_BIN=$bin" >> $env:GITHUB_ENV
+          & "$bin\ffmpeg.exe" -hide_banner -encoders | Select-String libtheora
+        shell: pwsh
+
+      - name: Construction
+        run: python build_exe.py --ffmpeg "$env:FFMPEG_BIN"
+        shell: pwsh
+
+      # Verification minimale : l'outil demarre et repond avant d'etre publie.
+      - name: Verification au demarrage
+        run: |
+          $exe = "dist\ChoicerVoicerPackMaker\ChoicerVoicerPackMaker.exe"
+          $p = Start-Process $exe -ArgumentList "--port","8799","--no-browser" -PassThru
+          Start-Sleep -Seconds 20
+          try {
+            $r = Invoke-RestMethod "http://127.0.0.1:8799/api/bootstrap" -TimeoutSec 30
+            if (-not $r.tools.ffmpeg.ok) { throw "ffmpeg embarque non fonctionnel" }
+            if (-not $r.frozen) { throw "l'executable ne se reconnait pas comme tel" }
+            "ffmpeg : $($r.tools.ffmpeg.version)"
+          } finally {
+            Stop-Process -Id $p.Id -Force
+          }
+        shell: pwsh
+
+      - name: Archive
+        run: |
+          $nom = "ChoicerVoicerPackMaker-${{ github.ref_name }}-win64.zip"
+          Compress-Archive -Path dist\ChoicerVoicerPackMaker\* -DestinationPath $nom
+          "ARCHIVE=$nom" >> $env:GITHUB_ENV
+          "{0:N0} Mo" -f ((Get-Item $nom).Length / 1MB)
+        shell: pwsh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChoicerVoicerPackMaker-win64
+          path: ${{ env.ARCHIVE }}
+
+      - name: Publication
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE }}
+          generate_release_notes: true
+          body: |
+            ## Telechargement
+
+            **[${{ env.ARCHIVE }}](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.ARCHIVE }})**
+
+            Decompresse le dossier ou tu veux, lance `ChoicerVoicerPackMaker.exe`.
+            ffmpeg est inclus, il n'y a rien a installer. Tes projets sont ranges
+            dans `data/`, a cote de l'executable.
+
+            Windows peut afficher un avertissement SmartScreen : l'executable
+            n'est pas signe. *Informations complementaires* puis *Executer quand meme*.
+
+            ### Fonctions IA
+
+            Transcription, piste d'ambiance, detection des locuteurs et detourage
+            reposent sur des bibliotheques de plus d'un giga : elles ne sont pas
+            dans l'archive. Pour en profiter, installe-les dans un Python et
+            indique-le dans **Reglages** :
+
+            ```
+            pip install faster-whisper demucs pyannote.audio rembg onnxruntime opencv-python-headless
+            ```

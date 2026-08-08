@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 
 from . import build as builder
 from . import clips as cliptools
-from . import diarize, inifmt, jobs, media, portrait, project as projects
+from . import diarize, helper, inifmt, jobs, media, portrait, project as projects
 from . import separate, settings, subs, transcribe, ytdl
 from .specs import (SOURCE_AUDIO_EXTS, SOURCE_VIDEO_EXTS, SPECS, public_specs)
 
@@ -119,17 +119,23 @@ def bootstrap():
         "demucs": separate.status(),
         "portrait": portrait.status(),
         "diarize": diarize.status(),
+        "helper": helper.status(),
         "platform": sys.platform,
+        # Version .exe : conseiller « pip install » n'aurait aucun sens, il n'y
+        # a pas d'environnement Python sous la main.
+        "frozen": settings.FROZEN,
     }
 
 
 @router.post("/settings")
 async def update_settings(request: Request):
     patch = await request.json()
+    # Le chemin du Python exterieur a pu changer : la detection est a refaire.
+    helper.forget()
     return {"settings": settings.save(patch), "game": settings.game_dir_status(),
             "tools": media.check_tools(), "whisper": transcribe.status(),
             "demucs": separate.status(), "portrait": portrait.status(),
-            "diarize": diarize.status()}
+            "diarize": diarize.status(), "helper": helper.status()}
 
 
 @router.post("/gamedata/ensure")
@@ -799,32 +805,29 @@ def _transcribe(job, project_id: str, params: dict) -> dict:
     if not params.get("overwrite", False):
         clips = [c for c in clips if not (c.get("caption") or "").strip()]
 
-    total = max(1, len(clips))
     language = params.get("language", "fr")
     job.progress(0.02, "Chargement du modele")
-    transcribe.get_model()
-
-    done = 0
-    for clip in clips:
-        if job.cancelled():
-            break
-        text = transcribe.transcribe_range(Path(source), float(clip["start"]),
-                                           float(clip["end"]), language=language)
-        target = found.clip(clip["id"])
+    textes = transcribe.transcribe_ranges(
+        Path(source),
+        [{"id": c["id"], "start": c["start"], "end": c["end"]} for c in clips],
+        language=language,
+        progress_cb=lambda f, m: job.progress(f, m),
+        cancelled=job.cancelled,
+    )
+    for clip_id, texte in textes.items():
+        target = found.clip(clip_id)
         if target is not None:
-            target["caption"] = text
-        done += 1
-        job.progress(done / total, f"{done}/{total} — {text[:60]}")
-        found.save()
-    return {"clips": found.data.get("clips", []), "transcribed": done}
+            target["caption"] = texte
+    found.save()
+    return {"clips": found.data.get("clips", []), "transcribed": len(textes)}
 
 
 @router.post("/projects/{project_id}/transcribe")
 async def start_transcription(project_id: str, request: Request):
     _project(project_id)
-    if not transcribe.available():
-        raise HTTPException(400, "faster-whisper n'est pas installe. "
-                                 "Lance : pip install faster-whisper")
+    if not (transcribe.available() or helper.status().get("whisper")):
+        raise HTTPException(400, "faster-whisper n'est pas disponible. Installe-le, "
+                                 "ou indique dans les Reglages un Python qui l'a.")
     params = await request.json()
     return {"job": jobs.submit("Transcription", _transcribe, project_id, params)}
 
@@ -840,7 +843,9 @@ def _diarize(job, project_id: str, params: dict) -> dict:
         raise RuntimeError("Aucune source a analyser")
 
     job.progress(0.05, "Chargement du modele")
-    turns = diarize.speakers(Path(source), count=params.get("speakers") or None)
+    turns = diarize.speakers(Path(source), count=params.get("speakers") or None,
+                             progress_cb=lambda f, m: job.progress(0.05 + 0.75 * f,
+                                                                   m or "Analyse des voix"))
     if not turns:
         raise RuntimeError("Aucune voix distinguee dans cette source.")
 
@@ -896,9 +901,9 @@ async def rename_character(project_id: str, request: Request):
 async def start_diarization(project_id: str, request: Request):
     _project(project_id)
     state = diarize.status()
-    if not state["available"]:
-        raise HTTPException(400, "pyannote.audio n'est pas installe. "
-                                 "Lance : pip install pyannote.audio")
+    if not (state["available"] or helper.status().get("diarize")):
+        raise HTTPException(400, "pyannote.audio n'est pas disponible. Installe-le, "
+                                 "ou indique dans les Reglages un Python qui l'a.")
     if not state["token"]:
         raise HTTPException(400, "Aucun jeton Hugging Face dans les Reglages : le "
                                  "modele de diarisation en demande un.")
@@ -935,8 +940,9 @@ def _backing_track(job, project_id: str, params: dict) -> dict:
 @router.post("/projects/{project_id}/backing-track")
 async def start_backing_track(project_id: str, request: Request):
     _project(project_id)
-    if not separate.available():
-        raise HTTPException(400, "demucs n'est pas installe. Lance : pip install demucs")
+    if not (separate.available() or helper.status().get("demucs")):
+        raise HTTPException(400, "demucs n'est pas disponible. Installe-le, ou indique "
+                                 "dans les Reglages un Python qui l'a.")
     params = await request.json() if await request.body() else {}
     return {"job": jobs.submit("Piste d'ambiance", _backing_track, project_id, params)}
 
@@ -1028,8 +1034,8 @@ async def cutout_asset(project_id: str, slot: str):
     found = _project(project_id)
     _stage_slot(found.type, slot)
     if not portrait.status()["cutout"]:
-        raise HTTPException(400, "rembg n'est pas installe. "
-                                 "Lance : pip install rembg onnxruntime")
+        raise HTTPException(400, "rembg n'est pas disponible. Installe-le, ou indique "
+                                 "dans les Reglages un Python qui l'a.")
     return {"job": jobs.submit("Detourage", _cutout, project_id, slot)}
 
 

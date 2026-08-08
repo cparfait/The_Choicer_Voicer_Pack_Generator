@@ -2003,11 +2003,21 @@ async function renderLibrary() {
 
 /* --------------------------------------------------------- vue reglages */
 
+/** Comment obtenir une dependance absente, selon la facon dont l'outil tourne. */
+function installHint(command) {
+  return state.boot.frozen
+    ? t('Cette version .exe n\'embarque pas les fonctions IA : prends la version '
+        + 'Python de l\'outil pour en profiter.')
+    : t('Non installe. Dans le dossier de l\'outil, lance :')
+      + ` <code>${escapeHtml(command)}</code>`;
+}
+
 function renderSettings() {
   const host = document.getElementById('view-settings');
   const s = state.boot.settings;
   const tools = state.boot.tools;
   const game = state.boot.game;
+  const aide = state.boot.helper || {};
 
   host.innerHTML = `
     <div class="card">
@@ -2062,9 +2072,29 @@ function renderSettings() {
     </div>
 
     <div class="card">
+      <h2>Fonctions IA : Python exterieur</h2>
+      <p class="hint">Transcription, piste d'ambiance, locuteurs et detourage reposent sur
+        des bibliotheques de plus d'un giga. ${state.boot.frozen
+          ? t('La version .exe ne les embarque pas : indique ici un Python qui les a, '
+              + 'et l\'outil lui confiera le travail.')
+          : t('Elles sont utilisees directement si elles sont installees ici ; sinon '
+              + 'l\'outil peut les demander a un autre Python.')}</p>
+      <label class="field" style="margin-top:12px"><span>Chemin du Python (vide = detection automatique)</span>
+        <input type="text" id="set-python" value="${escapeAttr(s.python_ai || '')}"
+               placeholder="C:\Python310\python.exe"></label>
+      <div class="issue ${aide.python ? 'info' : 'warning'}">
+        ${aide.python
+          ? escapeHtml(t('Trouve : %s', aide.python)) + '<br>'
+            + ['whisper', 'demucs', 'diarize', 'cutout', 'face']
+              .map((k) => `${k} ${aide[k] ? '&#10003;' : '&#10007;'}`).join(' &middot; ')
+          : t('Aucun Python capable trouve.')}
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Transcription (faster-whisper)</h2>
       <p class="hint">${state.boot.whisper.available
-        ? 'Installe.' : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install faster-whisper</code>'}</p>
+        ? 'Installe.' : installHint('pip install faster-whisper')}</p>
       <div class="grid three" style="margin-top:12px">
         <label class="field"><span>Modele</span>
           <select id="set-model">
@@ -2085,7 +2115,7 @@ function renderSettings() {
       <h2>Piste d'ambiance (demucs)</h2>
       <p class="hint">${state.boot.demucs.available
         ? t('Installe.') + ` demucs ${escapeHtml(state.boot.demucs.version || '')}`
-        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install demucs</code>'}</p>
+        : installHint('pip install demucs')}</p>
       <p class="hint">Separe les voix de la musique pour fabriquer
         <code>_backing_track</code> automatiquement. Tire PyTorch avec lui : compter
         plusieurs Go.</p>
@@ -2095,7 +2125,7 @@ function renderSettings() {
       <h2>Personnages (rembg, OpenCV)</h2>
       <p class="hint">${state.boot.portrait.cutout
         ? t('Installe.') + ' rembg'
-        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install rembg onnxruntime</code>'}
+        : installHint('pip install rembg onnxruntime')}
         &middot; ${state.boot.portrait.face
           ? 'OpenCV ' + t('Installe.')
           : '<code>pip install opencv-python-headless</code>'}</p>
@@ -2107,7 +2137,7 @@ function renderSettings() {
       <h2>Detection des locuteurs (pyannote)</h2>
       <p class="hint">${state.boot.diarize.available
         ? t('Installe.')
-        : 'Non installe. Dans le dossier de l\'outil, lance : <code>pip install pyannote.audio</code>'}</p>
+        : installHint('pip install pyannote.audio')}</p>
       <p class="hint">Le modele est sous conditions. Accepte-les sur les deux pages —
         <a href="https://hf.co/pyannote/segmentation-3.0" target="_blank"
            rel="noopener">segmentation-3.0</a> et
@@ -2153,6 +2183,7 @@ function renderSettings() {
         whisper_model: host.querySelector('#set-model').value,
         whisper_device: host.querySelector('#set-device').value,
         hf_token: host.querySelector('#set-hf').value.trim(),
+        python_ai: host.querySelector('#set-python').value.trim(),
         author: host.querySelector('#set-author').value.trim(),
       });
       Object.assign(state.boot, result);

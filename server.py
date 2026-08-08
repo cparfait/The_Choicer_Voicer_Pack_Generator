@@ -19,8 +19,10 @@ from fastapi.staticfiles import StaticFiles
 from cvpack import settings
 from cvpack.api import router
 
-ROOT = Path(__file__).resolve().parent
-WEB = ROOT / "web"
+# L'interface est embarquee dans le paquet en version .exe, a cote du code
+# sinon. settings.BUNDLE pointe sur le bon dossier dans les deux cas.
+WEB = (settings.BUNDLE / "web" if settings.FROZEN
+       else Path(__file__).resolve().parent / "web")
 
 app = FastAPI(title="Choicer Voicer Pack Maker", docs_url="/api/docs", redoc_url=None)
 app.include_router(router)
@@ -51,7 +53,15 @@ def main() -> None:
     if not args.no_browser:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
 
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    except OSError as exc:
+        # En .exe la console se ferme avec le processus : sans ce message,
+        # « le port est deja pris » n'aurait aucune chance d'etre lu.
+        print(f"\n  Demarrage impossible : {exc}")
+        print("  L'outil tourne peut-etre deja, ou le port est occupe.")
+        if settings.FROZEN:
+            input("\n  Appuie sur Entree pour fermer.")
 
 
 if __name__ == "__main__":

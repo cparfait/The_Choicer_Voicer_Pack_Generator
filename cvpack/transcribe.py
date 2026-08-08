@@ -69,6 +69,49 @@ def transcribe_range(source: Path, start: float, end: float, language: str = "fr
         return transcribe_file(clip, language=language)
 
 
+def transcribe_ranges(source: Path, ranges: list[dict], language: str = "fr",
+                      progress_cb=None, cancelled=None) -> dict[str, str]:
+    """Transcrit plusieurs intervalles : {identifiant du clip -> texte}.
+
+    Quand la bibliotheque manque — la version .exe ne l'embarque pas — le
+    travail part chez un Python exterieur. La decoupe reste ici, puisque c'est
+    nous qui avons ffmpeg, et le modele n'est charge qu'une fois de l'autre cote.
+    """
+    if available():
+        textes: dict[str, str] = {}
+        total = max(1, len(ranges))
+        for index, item in enumerate(ranges, start=1):
+            if cancelled and cancelled():
+                break
+            texte = transcribe_range(source, float(item["start"]), float(item["end"]),
+                                     language=language)
+            textes[item["id"]] = texte
+            if progress_cb:
+                progress_cb(index / total, f"{index}/{total} — {texte[:60]}")
+        return textes
+
+    from . import helper
+
+    with tempfile.TemporaryDirectory(prefix="cvpack-whisper-") as tmp:
+        fichiers = []
+        for index, item in enumerate(ranges, start=1):
+            clip = Path(tmp) / f"{index:04d}.wav"
+            media.export_clip(source, clip, float(item["start"]), float(item["end"]),
+                              fmt="wav", normalize=False, fade_ms=0)
+            fichiers.append({"id": item["id"], "path": str(clip)})
+            if progress_cb:
+                progress_cb(0.05 * index / max(1, len(ranges)), "Preparation des extraits")
+        suivi = (lambda f, m: progress_cb(0.05 + 0.95 * f, m)) if progress_cb else None
+        resultat = helper.run("whisper", {
+            "files": fichiers,
+            "language": language,
+            "model": settings.get("whisper_model") or "small",
+            "device": settings.get("whisper_device") or "auto",
+            "compute_type": "default",
+        }, progress_cb=suivi)
+    return resultat.get("captions") or {}
+
+
 def status() -> dict:
     device, compute = _pick_device() if available() else ("", "")
     return {

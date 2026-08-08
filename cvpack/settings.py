@@ -8,8 +8,13 @@ import shutil
 import sys
 from pathlib import Path
 
-# Racine du projet (le dossier qui contient server.py)
-ROOT = Path(__file__).resolve().parent.parent
+# En version .exe, les donnees vont a cote de l'executable : les projets
+# restent visibles et sauvegardables. Le code, lui, est depaquete dans un
+# dossier temporaire (_MEIPASS) dont il ne faut rien attendre de durable.
+FROZEN = bool(getattr(sys, "frozen", False))
+ROOT = (Path(sys.executable).resolve().parent if FROZEN
+        else Path(__file__).resolve().parent.parent)
+BUNDLE = Path(getattr(sys, "_MEIPASS", ROOT))
 DATA_DIR = ROOT / "data"
 PROJECTS_DIR = DATA_DIR / "projects"
 SETTINGS_FILE = DATA_DIR / "settings.json"
@@ -49,6 +54,9 @@ DEFAULTS = {
     # Jeton Hugging Face, pour la detection des locuteurs seulement : son
     # modele n'est telechargeable qu'apres acceptation de ses conditions.
     "hf_token": "",
+    # Python exterieur charge des fonctions IA quand l'outil ne les a pas
+    # (cas de la version .exe). Vide = detection automatique.
+    "python_ai": "",
     "clip_format": "ogg",  # ogg | wav | mp3
     "normalize": True,
     "target_lufs": -16.0,
@@ -104,6 +112,12 @@ def binary(name: str) -> str:
             if with_exe.is_file():
                 return str(with_exe)
         # Reglage inexploitable : on retombe sur le PATH plutot que d'echouer.
+    # Version .exe : ffmpeg peut voyager avec l'outil, dans un dossier ffmpeg/
+    # pose a cote de l'executable ou embarque dans le paquet.
+    for base in (ROOT / "ffmpeg", BUNDLE / "ffmpeg"):
+        candidate = base / f"{name}.exe"
+        if candidate.is_file():
+            return str(candidate)
     found = shutil.which(name)
     return found or name
 

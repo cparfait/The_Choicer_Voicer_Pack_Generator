@@ -43,7 +43,24 @@ This tool does all of that. You pick the video and nudge the edges.
 
 ---
 
-## 🚀 Getting started
+## ⬇️ Download
+
+**[Latest Windows build](https://github.com/cparfait/The_Choicer_Voicer_Pack_Generator/releases/latest)**
+
+Unzip the folder wherever you like and run `ChoicerVoicerPackMaker.exe`. Nothing
+to install: ffmpeg travels with the tool, and your projects live in `data/` next
+to the executable — easy to back up or move.
+
+Windows may show a SmartScreen warning, as the executable is unsigned: *More
+info* then *Run anyway*.
+
+The four PyTorch-based features — transcription, backing track, speaker
+detection, cutting out — are not in the archive: over a gigabyte on their own.
+The tool can borrow them from a Python that has them, see *AI features* below.
+
+---
+
+## 🚀 Getting started (from source)
 
 ```bash
 run.bat
@@ -78,6 +95,20 @@ greyed out and tells you what to install.
 
 The ffmpeg path is set in **Settings**. The field takes either the executable or
 the folder holding it; leave it empty to use the one from your `PATH`.
+
+### 🤖 AI features
+
+Two ways to use them:
+
+- **Python version** — `pip install faster-whisper demucs pyannote.audio rembg
+  onnxruntime opencv-python-headless`, and they all light up in place;
+- **.exe version** — the archive does not carry them, but the tool can borrow
+  them: point **Settings → AI features** at a Python that has them and it will
+  hand the work to a subprocess. Cutting the excerpts stays with the bundled
+  ffmpeg; only the model runs outside.
+
+None of them is required: without them the matching button stays greyed out and
+tells you what to install.
 
 ### 🌍 Three languages
 

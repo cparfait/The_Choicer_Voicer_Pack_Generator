@@ -30,7 +30,12 @@ def _has(module: str) -> bool:
 
 
 def status() -> dict:
-    return {"cutout": _has("rembg"), "face": _has("cv2")}
+    """Ce qui est possible, ici ou via un Python exterieur."""
+    from . import helper
+    aide = helper.status()
+    return {"cutout": _has("rembg") or bool(aide.get("cutout")),
+            "face": _has("cv2") or bool(aide.get("face")),
+            "local": {"cutout": _has("rembg"), "face": _has("cv2")}}
 
 
 # --------------------------------------------------------------------------
@@ -38,16 +43,19 @@ def status() -> dict:
 # --------------------------------------------------------------------------
 
 def cutout(source: Path, destination: Path, height: int = STAGE_HEIGHT) -> None:
-    """Enleve le fond, rogne les marges vides, met a la hauteur du plateau."""
-    if not _has("rembg"):
-        raise RuntimeError(
-            "rembg n'est pas installe. Lance : pip install rembg onnxruntime"
-        )
-    from rembg import remove  # import tardif : le modele se charge a la demande
+    """Enleve le fond, rogne les marges vides, met a la hauteur du plateau.
 
+    Le detourage lui-meme part chez un Python exterieur quand rembg n'est pas
+    la ; le rognage et la mise a l'echelle restent ici, ou vit ffmpeg.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     cut = destination.with_suffix(".cut.png")
-    cut.write_bytes(remove(Path(source).read_bytes()))
+    if _has("rembg"):
+        from rembg import remove  # import tardif : le modele se charge a la demande
+        cut.write_bytes(remove(Path(source).read_bytes()))
+    else:
+        from . import helper
+        helper.run("cutout", {"source": str(source), "destination": str(cut)})
     try:
         alpha = media.alpha_info(cut)
         media.fit_stage_image(cut, destination, height, alpha["bounds"])
@@ -75,6 +83,61 @@ def _portrait_box(width: int, height: int, face=None) -> tuple[int, int, int, in
     return left, 0, box_width, height
 
 
+def _detect_faces(video: Path, duration: float,
+                  samples: int) -> list[tuple[float, int, list[dict]]]:
+    """Visages trouves dans quelques images de la video : (instant, largeur, visages).
+
+    OpenCV ici s'il est la, sinon un Python exterieur — en une seule invocation
+    pour toutes les images, car demarrer Python coute plus cher que la
+    detection. Sans aide du tout, la liste est vide et l'appelant se rabat sur
+    un recadrage centre.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="cvpack-faces-") as tmp:
+        images: list[tuple[float, Path]] = []
+        for index in range(samples):
+            at = duration * (index + 0.5) / samples
+            cible = Path(tmp) / f"{index:02d}.jpg"
+            try:
+                media.extract_frame(video, at, cible, width=640)
+            except media.MediaError:
+                continue
+            images.append((at, cible))
+        if not images:
+            return []
+
+        if _has("cv2"):
+            import cv2
+
+            cascade = cv2.CascadeClassifier(
+                cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+            sortie = []
+            for at, chemin in images:
+                image = cv2.imread(str(chemin))
+                if image is None:
+                    continue
+                grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                faces = cascade.detectMultiScale(grey, scaleFactor=1.15,
+                                                 minNeighbors=5, minSize=(40, 40))
+                sortie.append((at, int(image.shape[1]),
+                               [{"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+                                for (x, y, w, h) in faces]))
+            return sortie
+
+        from . import helper
+        if not helper.status().get("face"):
+            return []
+        try:
+            resultat = helper.run("faces", {"sources": [str(p) for _at, p in images]})
+        except helper.HelperError:
+            return []
+        par_chemin = {item["source"]: item for item in resultat.get("images", [])}
+        return [(at, par_chemin.get(str(p), {}).get("width", 0),
+                 par_chemin.get(str(p), {}).get("faces", []))
+                for at, p in images]
+
+
 def frame_with_face(video: Path, destination: Path, samples: int = 12) -> float:
     """Image de la video ou le visage est le plus grand, recadree en personnage.
 
@@ -86,32 +149,15 @@ def frame_with_face(video: Path, destination: Path, samples: int = 12) -> float:
         raise RuntimeError("Duree de la video inconnue.")
 
     best_time, best_face, best_area = duration / 2, None, 0
-    probe = destination.with_suffix(".probe.jpg")
-    if _has("cv2"):
-        import cv2
-
-        cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        try:
-            for index in range(samples):
-                at = duration * (index + 0.5) / samples
-                try:
-                    media.extract_frame(video, at, probe, width=640)
-                except media.MediaError:
-                    continue
-                image = cv2.imread(str(probe))
-                if image is None:
-                    continue
-                scale = media.probe(video)["width"] / image.shape[1] if image.shape[1] else 1
-                grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                faces = cascade.detectMultiScale(grey, scaleFactor=1.15, minNeighbors=5,
-                                                 minSize=(40, 40))
-                for (x, y, width, height) in faces:
-                    if width * height > best_area:
-                        best_time, best_area = at, width * height
-                        best_face = (x * scale, y * scale, width * scale, height * scale)
-        finally:
-            probe.unlink(missing_ok=True)
+    detection = _detect_faces(video, duration, samples)
+    for at, largeur, faces in detection:
+        echelle = media.probe(video)["width"] / largeur if largeur else 1
+        for face in faces:
+            aire = face["w"] * face["h"]
+            if aire > best_area:
+                best_time, best_area = at, aire
+                best_face = (face["x"] * echelle, face["y"] * echelle,
+                             face["w"] * echelle, face["h"] * echelle)
 
     full = destination.with_suffix(".full.png")
     try:
