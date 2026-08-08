@@ -1,6 +1,6 @@
 # 🎙️ The Choicer Voicer — Pack Maker
 
-*[Version francaise](README.md)*
+*[Version francaise](README.fr.md)*
 
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-cristof-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/cristof)
 

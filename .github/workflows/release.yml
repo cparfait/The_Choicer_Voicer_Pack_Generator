@@ -67,6 +67,9 @@ jobs:
 
       - name: Archive
         run: |
+          # La verification a fait naitre un data/ vide : il n'a rien a faire
+          # dans l'archive, l'outil le recree au premier lancement.
+          Remove-Item -Recurse -Force dist\ChoicerVoicerPackMaker\data -ErrorAction SilentlyContinue
           $nom = "ChoicerVoicerPackMaker-${{ github.ref_name }}-win64.zip"
           Compress-Archive -Path dist\ChoicerVoicerPackMaker\* -DestinationPath $nom
           "ARCHIVE=$nom" >> $env:GITHUB_ENV
