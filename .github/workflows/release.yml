@@ -58,7 +58,9 @@ jobs:
           try {
             $boot = Invoke-RestMethod "http://127.0.0.1:8799/api/bootstrap" -TimeoutSec 30
             if (-not $boot.frozen) { throw "l'executable ne se reconnait pas comme tel" }
-            if ($boot.specs.PSObject.Properties.Count -lt 7) { throw "types de packs manquants" }
+            # @(...) est indispensable : sans lui PowerShell enumere les
+            # proprietes et renvoie le Count de chacune, soit « 1 1 1 1 1 1 1 ».
+            if (@($boot.specs.PSObject.Properties).Count -lt 7) { throw "types de packs manquants" }
             # L'etat des outils externes n'est plus dans /api/bootstrap, qui
             # repond tout de suite : il se demande a /api/tools.
             $outils = Invoke-RestMethod "http://127.0.0.1:8799/api/tools" -TimeoutSec 120
