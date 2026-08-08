@@ -88,24 +88,43 @@ jobs:
           files: ${{ env.ARCHIVE }}
           generate_release_notes: true
           body: |
-            ## Telechargement
+            ## Download
 
             **[${{ env.ARCHIVE }}](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ env.ARCHIVE }})**
 
-            Decompresse le dossier ou tu veux, lance `ChoicerVoicerPackMaker.exe`.
-            ffmpeg est inclus, il n'y a rien a installer. Tes projets sont ranges
-            dans `data/`, a cote de l'executable.
+            Unzip the folder wherever you like and run `ChoicerVoicerPackMaker.exe`.
+            ffmpeg is included, there is nothing to install. Your projects are
+            stored in `data/`, next to the executable.
 
-            Windows peut afficher un avertissement SmartScreen : l'executable
-            n'est pas signe. *Informations complementaires* puis *Executer quand meme*.
+            Windows may show a SmartScreen warning, as the executable is not
+            signed: *More info* then *Run anyway*.
 
-            ### Fonctions IA
+            ### What it does
 
-            Transcription, piste d'ambiance, detection des locuteurs et detourage
-            reposent sur des bibliotheques de plus d'un giga : elles ne sont pas
-            dans l'archive. Pour en profiter, installe-les dans un Python et
-            indique-le dans **Reglages** :
+            Turns any video into a playable The Choicer Voicer content pack:
+            downloads it, splits the audio into lines using the subtitles (or the
+            silences), grabs one still per clip, converts the video to OGV/Theora
+            for the game engine, and installs the pack straight into the game.
+            All seven pack types are covered. Interface in English, French and
+            Spanish.
+
+            ### AI features
+
+            Transcription, backing track, speaker detection and cutting characters
+            out rely on libraries weighing over a gigabyte: they are **not** in the
+            archive. To use them, install them into any Python and point
+            **Settings → AI features** at it:
 
             ```
             pip install faster-whisper demucs pyannote.audio rembg onnxruntime opencv-python-headless
             ```
+
+            ---
+
+            ### En francais
+
+            Decompresse le dossier ou tu veux, lance `ChoicerVoicerPackMaker.exe` :
+            ffmpeg est inclus, rien a installer, et tes projets se rangent dans
+            `data/` a cote de l'executable. Les quatre fonctions IA ne sont pas
+            dans l'archive — indique dans **Reglages** un Python qui les possede.
+            Details dans le [README francais](https://github.com/${{ github.repository }}/blob/main/README.fr.md).
